@@ -145,7 +145,7 @@ class SystemAudioEngine(
 
         captureJob = scope.launch(Dispatchers.Default) {
             val chunkSeconds = when (sttBackend) {
-                SttBackend.LOCAL_VOSK -> LOCAL_CHUNK_SECONDS
+                SttBackend.LOCAL_VOSK, SttBackend.LOCAL_SHERPA -> LOCAL_CHUNK_SECONDS
                 SttBackend.REMOTE_WHISPER -> REMOTE_CHUNK_SECONDS
             }
             val chunkBytes = SAMPLE_RATE * 2 * chunkSeconds // 16-bit mono = 2 bytes/sample
@@ -204,7 +204,7 @@ class SystemAudioEngine(
                         val wavData = WavEncoder.encode(pcmData, SAMPLE_RATE)
                         sttClient.transcribe(wavData, sttUrl, languageCode)
                     }
-                    SttBackend.LOCAL_VOSK -> {
+                    SttBackend.LOCAL_VOSK, SttBackend.LOCAL_SHERPA -> {
                         localSttClient.transcribe(pcmData, SAMPLE_RATE, sourceLanguageCode)
                     }
                 }

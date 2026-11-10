@@ -12,7 +12,9 @@ import com.charles.livecaptionn.data.FileGlossaryRepository
 import com.charles.livecaptionn.data.GlossaryRepository
 import com.charles.livecaptionn.data.feedback.BugReportRepo
 import com.charles.livecaptionn.service.CaptionRuntimeStore
+import com.charles.livecaptionn.speech.LocalSherpaSttClient
 import com.charles.livecaptionn.speech.LocalVoskSttClient
+import com.charles.livecaptionn.speech.SherpaModelStore
 import com.charles.livecaptionn.speech.VoskModelRegistry
 import com.charles.livecaptionn.translation.LanguageCatalogStore
 import com.charles.livecaptionn.translation.LibreTranslateRepository
@@ -46,6 +48,8 @@ class AppContainer(context: Context) {
     val glossary: GlossaryRepository = FileGlossaryRepository(context.applicationContext)
     val voskRegistry: VoskModelRegistry = VoskModelRegistry(context.applicationContext)
     val localVoskClient: LocalVoskSttClient = LocalVoskSttClient(voskRegistry)
+    val sherpaModelStore: SherpaModelStore = SherpaModelStore(context.applicationContext)
+    val localSherpaClient: LocalSherpaSttClient = LocalSherpaSttClient(sherpaModelStore)
     val languageCatalogStore: LanguageCatalogStore = LanguageCatalogStore(settingsRepository, appScope)
     val updateChecker: UpdateChecker = UpdateChecker()
     val bugReportRepo: BugReportRepo = BugReportRepo(context.applicationContext)

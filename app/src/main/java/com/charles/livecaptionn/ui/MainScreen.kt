@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
@@ -248,10 +249,13 @@ fun MainScreen(
                 }
             }
 
-            val modelReady = ui.settings.sttBackend != SttBackend.LOCAL_VOSK ||
-                ui.voskModels.any {
+            val modelReady = when (ui.settings.sttBackend) {
+                SttBackend.LOCAL_VOSK -> ui.voskModels.any {
                     it.installed && it.languageCode.equals(ui.settings.sourceLanguageCode, ignoreCase = true)
                 }
+                SttBackend.LOCAL_SHERPA -> ui.sherpaModel.installed
+                SttBackend.REMOTE_WHISPER -> true
+            }
             val permissionReady = ui.overlayPermissionGranted &&
                 (ui.settings.audioSource == AudioSource.SYSTEM || ui.micPermissionGranted)
             // A Pro-only ML Kit language can stay selected after Pro lapses (or after a
@@ -716,17 +720,24 @@ private fun AudioSourceCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ChoiceChip(
-                    label = if (isSystem) t["Remote Whisper"] else t["Android built-in"],
-                    icon = Icons.Filled.Cloud,
-                    selected = ui.settings.sttBackend == SttBackend.REMOTE_WHISPER,
-                    onClick = { viewModel.updateSttBackend(SttBackend.REMOTE_WHISPER) },
+                    label = if (isSttUnsupported) t["Sherpa"] + " 🔒" else t["Sherpa"],
+                    icon = if (isSttUnsupported) Icons.Filled.Lock else Icons.Filled.Bolt,
+                    selected = ui.settings.sttBackend == SttBackend.LOCAL_SHERPA,
+                    onClick = { viewModel.updateSttBackend(SttBackend.LOCAL_SHERPA) },
                     modifier = Modifier.weight(1f)
                 )
                 ChoiceChip(
-                    label = if (isSttUnsupported) t["Local Vosk"] + " 🔒" else t["Local Vosk"],
+                    label = if (isSttUnsupported) t["Vosk"] + " 🔒" else t["Vosk"],
                     icon = if (isSttUnsupported) Icons.Filled.Lock else Icons.Filled.Mic,
                     selected = ui.settings.sttBackend == SttBackend.LOCAL_VOSK,
                     onClick = { viewModel.updateSttBackend(SttBackend.LOCAL_VOSK) },
+                    modifier = Modifier.weight(1f)
+                )
+                ChoiceChip(
+                    label = if (isSystem) t["Remote"] else t["Built-in"],
+                    icon = Icons.Filled.Cloud,
+                    selected = ui.settings.sttBackend == SttBackend.REMOTE_WHISPER,
+                    onClick = { viewModel.updateSttBackend(SttBackend.REMOTE_WHISPER) },
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -754,6 +765,48 @@ private fun AudioSourceCard(
                     Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(t["Manage on-device models"])
+                }
+            } else if (ui.settings.sttBackend == SttBackend.LOCAL_SHERPA) {
+                val sherpa = ui.sherpaModel
+                Text(
+                    text = t["Newest engine: a Zipformer bilingual model with much stronger Chinese. One model covers Chinese + English, fully offline after a one-time download."],
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                when {
+                    sherpa.installed -> Text(
+                        text = t["Sherpa model installed and ready."],
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                    sherpa.downloading -> {
+                        LinearProgressIndicator(
+                            progress = { sherpa.progress },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Text(
+                            text = t["Downloading Sherpa model…"] + " ${(sherpa.progress * 100).toInt()}%",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    else -> {
+                        OutlinedButton(
+                            onClick = { viewModel.downloadSherpaModel() },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(t["Download Sherpa model (~190 MB)"])
+                        }
+                        sherpa.error?.let { err ->
+                            Text(
+                                text = err,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
                 }
             } else {
                 Text(

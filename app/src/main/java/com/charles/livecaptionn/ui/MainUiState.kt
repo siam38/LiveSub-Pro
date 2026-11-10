@@ -4,6 +4,7 @@ import com.charles.livecaptionn.service.CaptionRuntimeState
 import com.charles.livecaptionn.settings.CaptionSettings
 import com.charles.livecaptionn.settings.Language
 import com.charles.livecaptionn.settings.TranslationBackend
+import com.charles.livecaptionn.speech.SherpaModelState
 import com.charles.livecaptionn.speech.VoskModelInfo
 import com.charles.livecaptionn.translation.MlKitLanguages
 import com.charles.livecaptionn.ui.l10n.UiLocalizationRepository.UiLocalizationStage
@@ -22,6 +23,8 @@ data class MainUiState(
     val voskDownloadProgress: Map<String, Float> = emptyMap(),
     /** Last failed download per model name, shown in the model sheet. */
     val voskDownloadErrors: Map<String, String> = emptyMap(),
+    /** Sherpa bilingual model download state (in-app download, not bundled). */
+    val sherpaModel: SherpaModelState = SherpaModelState(),
     val availableUpdate: UpdateInfo? = null,
     /** True when the running APK was installed from the Google Play Store. Used
      *  to warn Play Store users before they grab a (potentially unstable)
@@ -61,6 +64,9 @@ data class MainUiState(
                     installedVosk
                         .distinctBy { it.languageCode.lowercase() }
                         .map { Language(it.languageCode, it.languageName) }
+                // One bilingual Zipformer model covers Chinese + English.
+                com.charles.livecaptionn.settings.SttBackend.LOCAL_SHERPA ->
+                    listOf(Language("zh", "Chinese"), Language("en", "English"))
                 // Remote Whisper (system audio) and AndroidSpeechRecognizer
                 // (mic) can in principle handle any locale the translation
                 // engine supports.

@@ -24,16 +24,16 @@ import org.vosk.Recognizer
  * language don't pay the disk-load cost. Model access is guarded by a mutex
  * to prevent races between concurrent openSession/transcribe calls.
  */
-class LocalVoskSttClient(private val registry: VoskModelRegistry) {
+class LocalVoskSttClient(private val registry: VoskModelRegistry) : StreamingSttClient {
     private var cachedLanguageCode: String? = null
     private var cachedModel: Model? = null
     private val modelMutex = Mutex()
 
     /** Open a streaming session for [languageCode] at [sampleRate]. Returns null if no model. */
-    suspend fun openSession(
+    override suspend fun openSession(
         languageCode: String,
         sampleRate: Int
-    ): VoskStreamingSession? = withContext(Dispatchers.IO) {
+    ): StreamingSttSession? = withContext(Dispatchers.IO) {
         val model = modelFor(languageCode) ?: return@withContext null
         try {
             val recognizer = Recognizer(model, sampleRate.toFloat()).apply {
@@ -116,7 +116,7 @@ class LocalVoskSttClient(private val registry: VoskModelRegistry) {
  */
 class VoskStreamingSession internal constructor(
     private val recognizer: Recognizer
-) {
+) : StreamingSttSession {
     @Volatile private var closed = false
 
     /**
@@ -125,7 +125,7 @@ class VoskStreamingSession internal constructor(
      * silence/segment boundary) plus the current text — if `accepted`, [text]
      * is the finalized segment; otherwise it's the latest partial.
      */
-    fun feed(pcm: ByteArray, length: Int = pcm.size): FeedResult {
+    override fun feed(pcm: ByteArray, length: Int): FeedResult {
         if (closed) return FeedResult("", accepted = false)
         val accepted = try {
             recognizer.acceptWaveForm(pcm, length)
@@ -142,7 +142,7 @@ class VoskStreamingSession internal constructor(
     }
 
     /** Flushes any buffered audio and returns the final remaining text. */
-    fun finish(): String {
+    override fun finish(): String {
         if (closed) return ""
         return try {
             LocalVoskSttClient.extractText(recognizer.finalResult)
@@ -152,7 +152,7 @@ class VoskStreamingSession internal constructor(
         }
     }
 
-    fun close() {
+    override fun close() {
         if (closed) return
         closed = true
         try { recognizer.close() } catch (_: Throwable) {}

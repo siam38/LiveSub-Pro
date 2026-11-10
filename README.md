@@ -15,7 +15,7 @@
 
 ---
 
-> **LiveSub Pro — fork by SiAM.** Real-subtitle rework of LiveCaptionN: cinema-style subtitle dock (one cue at a time, max 2 lines, no scrolling paragraph), translated-only or bilingual display, Chinese → English by default with the Chinese + English speech models bundled in, faster translation (instant finals, 120 ms partial debounce, translation cache), ads off.
+> **LiveSub Pro — fork by SiAM.** Real-subtitle rework of LiveCaptionN: cinema-style subtitle dock (one full cue at a time, no scrolling paragraph, no cut-off text), translated-only or bilingual display, Chinese → English by default, faster translation (instant finals, 120 ms partial debounce, translation cache), all Pro features unlocked, ads off. Default speech engine is **Sherpa (streaming Zipformer, bilingual Chinese + English)** via sherpa-onnx — much stronger Chinese recognition; its ~190 MB model downloads once inside the app so the APK stays lean. The original Vosk engine remains available as an optional engine in settings.
 
 LiveCaptionN listens through the microphone (or the currently playing app audio), transcribes what it hears in **real time** — word by word as you speak — translates between any supported language pair, and paints the result as a draggable caption window on top of whatever you are watching or browsing. It is built for people watching foreign-language videos, following along in a meeting, or studying another language hands-free.
 

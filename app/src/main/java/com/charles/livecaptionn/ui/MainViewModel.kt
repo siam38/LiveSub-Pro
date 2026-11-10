@@ -50,7 +50,7 @@ class MainViewModel(
                 var shouldShowUnsupported = mutableState.value.showUnsupportedModal
 
                 if (specs.tier == CompatibilityTier.UNSUPPORTED) {
-                    if (settings.sttBackend == SttBackend.LOCAL_VOSK || settings.translationBackend == TranslationBackend.ML_KIT) {
+                    if (settings.sttBackend == SttBackend.LOCAL_VOSK || settings.sttBackend == SttBackend.LOCAL_SHERPA || settings.translationBackend == TranslationBackend.ML_KIT) {
                         shouldShowUnsupported = true
                         viewModelScope.launch {
                             container.settingsRepository.update { curr ->
@@ -118,6 +118,11 @@ class MainViewModel(
         viewModelScope.launch {
             container.voskRegistry.downloadErrors.collectLatest { errors ->
                 mutableState.value = mutableState.value.copy(voskDownloadErrors = errors)
+            }
+        }
+        viewModelScope.launch {
+            container.sherpaModelStore.state.collectLatest { sherpa ->
+                mutableState.value = mutableState.value.copy(sherpaModel = sherpa)
             }
         }
         if (BuildConfig.GITHUB_SELF_UPDATE_ENABLED) {
@@ -226,9 +231,15 @@ class MainViewModel(
         viewModelScope.launch { container.settingsRepository.update { it.copy(audioSource = source) } }
     }
 
+    fun downloadSherpaModel() {
+        container.sherpaModelStore.download()
+    }
+
     fun updateSttBackend(backend: SttBackend) {
         val specs = mutableState.value.deviceSpecs
-        if (specs?.tier == CompatibilityTier.UNSUPPORTED && backend == SttBackend.LOCAL_VOSK) {
+        if (specs?.tier == CompatibilityTier.UNSUPPORTED &&
+            (backend == SttBackend.LOCAL_VOSK || backend == SttBackend.LOCAL_SHERPA)
+        ) {
             mutableState.value = mutableState.value.copy(showUnsupportedModal = true)
             return
         }

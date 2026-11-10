@@ -60,6 +60,10 @@ android {
         versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk {
+            // Phones only — keeps the APK lean by dropping x86/32-bit native libs.
+            abiFilters += listOf("arm64-v8a")
+        }
         vectorDrawables {
             useSupportLibrary = true
         }
@@ -215,6 +219,9 @@ dependencies {
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
     implementation("com.alphacephei:vosk-android:0.3.75")
+    // sherpa-onnx runtime (Zipformer streaming ASR). The AAR is fetched by CI
+    // into app/libs/ from the official sherpa-onnx GitHub release.
+    implementation(files("libs/sherpa-onnx.aar"))
     implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     // On-device translation (Google Translate models cached offline).

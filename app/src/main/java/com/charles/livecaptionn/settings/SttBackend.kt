@@ -1,7 +1,8 @@
 package com.charles.livecaptionn.settings
 
 enum class SttBackend(val label: String) {
-    LOCAL_VOSK("On-device (streaming)"),
+    LOCAL_SHERPA("On-device Sherpa (Zipformer)"),
+    LOCAL_VOSK("On-device Vosk (streaming)"),
     REMOTE_WHISPER("Remote Whisper");
 
     companion object {

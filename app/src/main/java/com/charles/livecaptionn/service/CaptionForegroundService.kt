@@ -199,6 +199,12 @@ class CaptionForegroundService : Service() {
                 failAndStop("This ML Kit language requires Pro. Choose a free language or upgrade.")
                 return@launch
             }
+            if (settings.sttBackend == SttBackend.LOCAL_SHERPA &&
+                !app.container.sherpaModelStore.isInstalled()
+            ) {
+                failAndStop("Sherpa model not downloaded yet. Open the app and download it in the Transcription engine section.")
+                return@launch
+            }
             if (settings.sttBackend == SttBackend.LOCAL_VOSK) {
                 val model = app.container.voskRegistry.installedModelFor(sttLanguageCode)
                 if (model == null) {
@@ -298,7 +304,7 @@ class CaptionForegroundService : Service() {
             //       system  → legacy batch SystemAudioEngine (posts WAVs to remote Whisper)
             //       mic     → AndroidSpeechRecognizerManager (Google recognizer; kept as fallback)
             val backend = settings.sttBackend
-            val useStreaming = backend == SttBackend.LOCAL_VOSK
+            val useStreaming = backend == SttBackend.LOCAL_VOSK || backend == SttBackend.LOCAL_SHERPA
 
             if (useStreaming) {
                 val engine = StreamingSttEngine(
@@ -306,7 +312,11 @@ class CaptionForegroundService : Service() {
                     audioSource = currentAudioSource,
                     mediaProjection = mediaProjection,
                     languageCode = sttLanguageCode,
-                    localSttClient = app.container.localVoskClient,
+                    sttClient = if (backend == SttBackend.LOCAL_SHERPA) {
+                        app.container.localSherpaClient
+                    } else {
+                        app.container.localVoskClient
+                    },
                     scope = serviceScope,
                     onResult = onSpeechResult,
                     onError = errorSink

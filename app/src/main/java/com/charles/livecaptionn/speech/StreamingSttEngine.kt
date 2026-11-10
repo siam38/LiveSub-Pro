@@ -39,7 +39,7 @@ class StreamingSttEngine(
     private val audioSource: AudioSource,
     private val mediaProjection: MediaProjection?,
     private val languageCode: String,
-    private val localSttClient: LocalVoskSttClient,
+    private val sttClient: StreamingSttClient,
     private val scope: CoroutineScope,
     private val onResult: (SpeechResult) -> Unit,
     private val onError: (String?) -> Unit = {}
@@ -50,7 +50,7 @@ class StreamingSttEngine(
 
     private var audioRecord: AudioRecord? = null
     private var captureJob: Job? = null
-    private var session: VoskStreamingSession? = null
+    private var session: StreamingSttSession? = null
 
     @Volatile private var running = false
     @Volatile private var paused = false
@@ -93,7 +93,7 @@ class StreamingSttEngine(
     }
 
     private suspend fun startInternal() {
-        val localSession = localSttClient.openSession(languageCode, SAMPLE_RATE)
+        val localSession = sttClient.openSession(languageCode, SAMPLE_RATE)
         if (localSession == null) {
             onError(
                 "No on-device model installed for '$languageCode'. " +

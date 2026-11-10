@@ -56,8 +56,8 @@ class CaptionSettingsTest {
     }
 
     @Test
-    fun defaults_sttBackend_isLocalVosk() {
-        assertEquals(SttBackend.LOCAL_VOSK, CaptionSettings().sttBackend)
+    fun defaults_sttBackend_isLocalSherpa() {
+        assertEquals(SttBackend.LOCAL_SHERPA, CaptionSettings().sttBackend)
     }
 
     @Test
