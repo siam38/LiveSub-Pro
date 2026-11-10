@@ -5,9 +5,11 @@ import com.k2fsa.sherpa.onnx.EndpointConfig
 import com.k2fsa.sherpa.onnx.EndpointRule
 import com.k2fsa.sherpa.onnx.FeatureConfig
 import com.k2fsa.sherpa.onnx.OnlineModelConfig
+import com.k2fsa.sherpa.onnx.OnlineParaformerModelConfig
 import com.k2fsa.sherpa.onnx.OnlineRecognizer
 import com.k2fsa.sherpa.onnx.OnlineRecognizerConfig
 import com.k2fsa.sherpa.onnx.OnlineStream
+import com.k2fsa.sherpa.onnx.OnlineToneCtcModelConfig
 import com.k2fsa.sherpa.onnx.OnlineTransducerModelConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -15,18 +17,17 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
-// Streaming zh-en recognition via sherpa-onnx (Zipformer transducer).
-// One bilingual model covers Chinese and English, including mixed speech.
+// Streaming recognition via sherpa-onnx. Picks the best installed model for
+// the requested language from SherpaModelCatalog.
 class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttClient {
 
     private var recognizer: OnlineRecognizer? = null
+    private var recognizerModelId: String? = null
     private val recognizerMutex = Mutex()
 
     override suspend fun openSession(languageCode: String, sampleRate: Int): StreamingSttSession? {
-        val base = languageCode.lowercase().substringBefore('-').substringBefore('_')
-        if (base != "zh" && base != "en") return null
-        if (!store.isInstalled()) return null
-        val rec = recognizer() ?: return null
+        val model = store.installedModelFor(languageCode) ?: return null
+        val rec = recognizerFor(model) ?: return null
         return try {
             SherpaStreamingSession(rec)
         } catch (t: Throwable) {
@@ -35,25 +36,49 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
         }
     }
 
-    private suspend fun recognizer(): OnlineRecognizer? {
-        recognizer?.let { return it }
+    private suspend fun recognizerFor(model: SherpaModel): OnlineRecognizer? {
+        if (recognizer != null && recognizerModelId == model.id) return recognizer
         return recognizerMutex.withLock {
-            recognizer?.let { return@withLock it }
+            if (recognizer != null && recognizerModelId == model.id) return@withLock recognizer
             withContext(Dispatchers.IO) {
                 try {
-                    val dir = store.modelDir()
-                    val config = OnlineRecognizerConfig(
-                        featConfig = FeatureConfig(sampleRate = 16_000, featureDim = 80),
-                        modelConfig = OnlineModelConfig(
+                    val dir = store.modelDir(model)
+                    fun path(prefix: String): String =
+                        File(dir, model.files.first { it.name.startsWith(prefix) }.name).absolutePath
+                    val modelConfig = when (model.type) {
+                        SherpaModelType.TRANSDUCER -> OnlineModelConfig(
                             transducer = OnlineTransducerModelConfig(
-                                encoder = File(dir, "encoder-epoch-99-avg-1.int8.onnx").absolutePath,
-                                decoder = File(dir, "decoder-epoch-99-avg-1.onnx").absolutePath,
-                                joiner = File(dir, "joiner-epoch-99-avg-1.int8.onnx").absolutePath
+                                encoder = path("encoder"),
+                                decoder = path("decoder"),
+                                joiner = path("joiner")
                             ),
                             tokens = File(dir, "tokens.txt").absolutePath,
                             numThreads = 2,
-                            modelType = "zipformer"
-                        ),
+                            modelType = model.modelType,
+                            modelingUnit = if (model.bpeFile != null) "cjkchar+bpe" else "",
+                            bpeVocab = model.bpeFile?.let { File(dir, it).absolutePath } ?: ""
+                        )
+                        SherpaModelType.PARAFORMER -> OnlineModelConfig(
+                            paraformer = OnlineParaformerModelConfig(
+                                encoder = path("encoder"),
+                                decoder = path("decoder")
+                            ),
+                            tokens = File(dir, "tokens.txt").absolutePath,
+                            numThreads = 2,
+                            modelType = model.modelType
+                        )
+                        SherpaModelType.TONE_CTC -> OnlineModelConfig(
+                            toneCtc = OnlineToneCtcModelConfig(
+                                model = File(dir, "model.onnx").absolutePath
+                            ),
+                            tokens = File(dir, "tokens.txt").absolutePath,
+                            numThreads = 2,
+                            modelType = model.modelType
+                        )
+                    }
+                    val config = OnlineRecognizerConfig(
+                        featConfig = FeatureConfig(sampleRate = 16_000, featureDim = 80),
+                        modelConfig = modelConfig,
                         endpointConfig = EndpointConfig(
                             rule1 = EndpointRule(false, 2.4f, 0.0f),
                             rule2 = EndpointRule(true, 1.0f, 0.0f),
@@ -62,9 +87,13 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
                         enableEndpoint = true,
                         decodingMethod = "greedy_search"
                     )
-                    OnlineRecognizer(config = config).also { recognizer = it }
+                    try { recognizer?.release() } catch (_: Throwable) {}
+                    OnlineRecognizer(config = config).also {
+                        recognizer = it
+                        recognizerModelId = model.id
+                    }
                 } catch (t: Throwable) {
-                    Log.w(TAG, "Failed to create Sherpa recognizer", t)
+                    Log.w(TAG, "Failed to create Sherpa recognizer for ${model.id}", t)
                     null
                 }
             }
@@ -76,8 +105,9 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
     }
 }
 
-// Live Sherpa session. Not thread-safe — call from a single worker coroutine,
-// same contract as VoskStreamingSession.
+// Live Sherpa session. FeedResult is shared with the streaming engine:
+// accepted=true means an endpoint (pause) finalized the current segment.
+// Not thread-safe — call from a single worker coroutine.
 class SherpaStreamingSession internal constructor(
     private val recognizer: OnlineRecognizer
 ) : StreamingSttSession {
@@ -85,8 +115,8 @@ class SherpaStreamingSession internal constructor(
     private val stream: OnlineStream = recognizer.createStream()
     @Volatile private var closed = false
 
-    override fun feed(pcm: ByteArray, length: Int): VoskStreamingSession.FeedResult {
-        if (closed) return VoskStreamingSession.FeedResult("", accepted = false)
+    override fun feed(pcm: ByteArray, length: Int): SttFeedResult {
+        if (closed) return SttFeedResult("", accepted = false)
         return try {
             val count = (length.coerceAtMost(pcm.size)) / 2
             val samples = FloatArray(count)
@@ -102,13 +132,13 @@ class SherpaStreamingSession internal constructor(
             val text = recognizer.getResult(stream).text.trim()
             if (recognizer.isEndpoint(stream)) {
                 recognizer.reset(stream)
-                VoskStreamingSession.FeedResult(text, accepted = true)
+                SttFeedResult(text, accepted = true)
             } else {
-                VoskStreamingSession.FeedResult(text, accepted = false)
+                SttFeedResult(text, accepted = false)
             }
         } catch (t: Throwable) {
             Log.w("SherpaStreamingSession", "feed failed", t)
-            VoskStreamingSession.FeedResult("", accepted = false)
+            SttFeedResult("", accepted = false)
         }
     }
 

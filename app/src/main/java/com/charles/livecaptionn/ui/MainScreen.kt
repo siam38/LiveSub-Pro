@@ -92,16 +92,14 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.charles.livecaptionn.ads.AdUnits
-import com.charles.livecaptionn.billing.PremiumProduct
-import com.charles.livecaptionn.ads.NativeAdCard
 import com.charles.livecaptionn.settings.AudioSource
 import com.charles.livecaptionn.settings.Language
 import com.charles.livecaptionn.settings.SttBackend
 import com.charles.livecaptionn.settings.TranslationBackend
 import com.charles.livecaptionn.speech.RecognitionStatus
-import com.charles.livecaptionn.speech.ModelQuality
-import com.charles.livecaptionn.speech.VoskModelInfo
+import com.charles.livecaptionn.speech.SherpaModel
+import com.charles.livecaptionn.speech.SherpaModelCatalog
+import com.charles.livecaptionn.speech.SherpaModelState
 import com.charles.livecaptionn.translation.MlKitLanguages
 import com.charles.livecaptionn.ui.feedback.FeedbackViewModel
 import com.charles.livecaptionn.ui.feedback.IssueDetailsDialog
@@ -113,9 +111,6 @@ import com.charles.livecaptionn.overlay.OverlayThemeCatalog
 import com.charles.livecaptionn.ui.l10n.LocalUiStrings
 import com.charles.livecaptionn.ui.l10n.UiLanguagePickerDialog
 import com.charles.livecaptionn.ui.l10n.UiLocalizationRepository.UiLocalizationStage
-import com.charles.livecaptionn.ui.premium.PremiumCard
-import com.charles.livecaptionn.ui.premium.PremiumUiState
-import com.charles.livecaptionn.ui.premium.PremiumViewModel
 import com.charles.livecaptionn.update.UpdateInfo
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -128,16 +123,13 @@ fun MainScreen(
     onStart: () -> Unit,
     onStop: () -> Unit,
     onHistory: () -> Unit = {},
-    pendingCheckoutSessionId: String? = null,
-    onCheckoutSessionConsumed: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val t = LocalUiStrings.current
     var translateUrlDraft by remember(ui.settings.serverBaseUrl) { mutableStateOf(ui.settings.serverBaseUrl) }
     var sttUrlDraft by remember(ui.settings.sttBaseUrl) { mutableStateOf(ui.settings.sttBaseUrl) }
-    var showVoskSheet by remember { mutableStateOf(false) }
-    var showUpgradePrompt by remember { mutableStateOf(false) }
+    var showModelSheet by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { viewModel.refreshPermissionState() }
 
     val feedbackCtx = LocalContext.current
@@ -146,19 +138,6 @@ fun MainScreen(
         factory = FeedbackViewModel.Factory(feedbackCtx, feedbackApp.container.bugReportRepo)
     )
     val feedbackState by feedbackVm.state.collectAsStateWithLifecycle()
-
-    val premiumVm: PremiumViewModel = viewModel(
-        factory = PremiumViewModel.Factory(feedbackApp.container.premiumRepository)
-    )
-    val premiumState by premiumVm.state.collectAsStateWithLifecycle()
-    val activity = feedbackCtx as? android.app.Activity
-
-    LaunchedEffect(pendingCheckoutSessionId) {
-        if (pendingCheckoutSessionId != null) {
-            premiumVm.refresh(pendingCheckoutSessionId)
-            onCheckoutSessionConsumed()
-        }
-    }
 
     // Re-check permission state on every resume so granting overlay/mic
     // access in system Settings is reflected immediately when the user
@@ -250,63 +229,38 @@ fun MainScreen(
             }
 
             val modelReady = when (ui.settings.sttBackend) {
-                SttBackend.LOCAL_VOSK -> ui.voskModels.any {
-                    it.installed && it.languageCode.equals(ui.settings.sourceLanguageCode, ignoreCase = true)
-                }
-                SttBackend.LOCAL_SHERPA -> ui.sherpaModel.installed
+                SttBackend.LOCAL_SHERPA -> ui.sherpaActiveModel != null
                 SttBackend.REMOTE_WHISPER -> true
             }
-            val permissionReady = ui.overlayPermissionGranted &&
-                (ui.settings.audioSource == AudioSource.SYSTEM || ui.micPermissionGranted)
-            // A Pro-only ML Kit language can stay selected after Pro lapses (or after a
-            // restore). Starting then used to fail inside the service with the reason
-            // hidden, so the Start button looked dead. Open the upgrade flow instead.
-            val startNeedsPro = com.charles.livecaptionn.translation.ProStartGate.requiresPro(
-                backend = ui.settings.translationBackend,
-                sourceLanguageCode = ui.settings.sourceLanguageCode,
-                targetLanguageCode = ui.settings.targetLanguageCode,
-                hasPro = premiumState.premium.hasPro
-            )
             CaptionControlCard(
-                ui,
-                onStart = { if (startNeedsPro) showUpgradePrompt = true else onStart() },
+                ui = ui,
+                onStart = onStart,
                 onStop = onStop,
-                canStart = modelReady && permissionReady,
-                modelMissing = !modelReady,
-                onDownloadModel = viewModel::downloadVoskModel,
-                onManageModels = { showVoskSheet = true }
+                onRequestAudioPermission = onRequestAudioPermission,
+                onOpenOverlaySettings = onOpenOverlaySettings,
+                onDownloadModel = { ui.sherpaNeededModel?.let { viewModel.downloadSherpaModel(it) } },
+                onManageModels = { showModelSheet = true }
             )
             PermissionsCard(ui, onRequestAudioPermission, onOpenOverlaySettings)
-            DeviceCompatibilityCard(
-                specs = ui.deviceSpecs,
-                onWatchTutorial = { viewModel.openTutorial() },
-                onSimulateTier = { viewModel.setSimulatedTier(it) }
-            )
-            AudioSourceCard(ui, viewModel, onManageModels = { showVoskSheet = true })
+            AudioSourceCard(ui, viewModel, onManageModels = { showModelSheet = true })
             LanguageCard(
                 ui = ui,
                 viewModel = viewModel,
-                onManageModels = { showVoskSheet = true },
-                hasPro = premiumState.premium.hasPro,
-                onRequiresPro = { showUpgradePrompt = true }
+                onManageModels = { showModelSheet = true }
             )
             OverlaySettingsCard(
                 ui = ui,
-                viewModel = viewModel,
-                hasPro = premiumState.premium.hasPro,
-                onRequiresPro = { showUpgradePrompt = true }
+                viewModel = viewModel
             )
             FeatureToolsCard(
                 settings = ui.settings,
-                hasPro = premiumState.premium.hasPro,
                 profiles = feedbackApp.container.captionProfiles,
                 glossary = feedbackApp.container.glossary,
                 micPermissionGranted = ui.micPermissionGranted,
                 overlayPermissionGranted = ui.overlayPermissionGranted,
-                voskModels = ui.voskModels,
+                modelReady = modelReady,
                 onApplyProfile = viewModel::applyProfile,
-                onSaveHistoryChange = viewModel::updateSaveHistory,
-                onRequiresPro = { showUpgradePrompt = true }
+                onSaveHistoryChange = viewModel::updateSaveHistory
             )
             UiLanguageCard(
                 languageCode = ui.uiLanguageCode,
@@ -317,17 +271,6 @@ fun MainScreen(
                 translatedTotal = ui.uiLocalizationTotal,
                 onSelect = viewModel::updateUiLanguage
             )
-            PremiumCard(
-                state = premiumState,
-                onPurchase = { product -> activity?.let { premiumVm.purchase(it, product) } },
-                onManageSubscription = { activity?.let { premiumVm.manageSubscription(it) } },
-                onRestoreEmailChange = { premiumVm.updateRestoreEmail(it) },
-                onRestore = { premiumVm.restore() },
-                onRefresh = { premiumVm.refresh() }
-            )
-            if (AdUnits.ENABLED && AdUnits.NATIVE.isNotBlank() && !premiumState.premium.hasAdFree) {
-                NativeAdCard()
-            }
             ServerCard(
                 ui = ui,
                 translateUrl = translateUrlDraft,
@@ -342,13 +285,17 @@ fun MainScreen(
                     ui.settings.sttBackend == SttBackend.REMOTE_WHISPER
             )
 
+            DeviceCompatibilityCard(
+                specs = ui.deviceSpecs,
+                onWatchTutorial = { viewModel.openTutorial() },
+                onSimulateTier = { viewModel.setSimulatedTier(it) }
+            )
             SupportAndFeedbackCard(
                 state = feedbackState,
                 onReportProblem = { feedbackVm.showReportDialog() },
                 onOpenReport = { feedbackVm.openIssueDetails(it) }
             )
 
-            MoreAppsSection()
             Spacer(modifier = Modifier.height(16.dp))
 
             if (feedbackState.submitSuccess) {
@@ -361,21 +308,12 @@ fun MainScreen(
             Spacer(Modifier.height(8.dp))
         }
 
-        if (showVoskSheet) {
-            VoskModelSheet(
-                models = ui.voskModels,
-                progress = ui.voskDownloadProgress,
-                errors = ui.voskDownloadErrors,
-                hasPro = premiumState.premium.hasPro,
-                onDismiss = { showVoskSheet = false },
-                onDownload = viewModel::downloadVoskModel,
-                onDelete = viewModel::deleteVoskModel,
-                onRequiresPro = {
-                    // Used to just close the sheet, which left the user with no
-                    // way to reach the purchase (Play review, Oct 2026).
-                    showVoskSheet = false
-                    showUpgradePrompt = true
-                }
+        if (showModelSheet) {
+            SherpaModelSheet(
+                states = ui.sherpaModels,
+                onDismiss = { showModelSheet = false },
+                onDownload = viewModel::downloadSherpaModel,
+                onDelete = viewModel::deleteSherpaModel
             )
         }
 
@@ -388,22 +326,6 @@ fun MainScreen(
                     viewModel.openTutorial()
                 }
             )
-        }
-
-        if (showUpgradePrompt) {
-            ProUpgradeDialog(
-                state = premiumState,
-                onGoPro = {
-                    val act = activity
-                    if (act != null) premiumVm.purchase(act, PremiumProduct.PRO_MONTHLY)
-                },
-                onDismiss = { showUpgradePrompt = false }
-            )
-            // Close the prompt once Pro is active so it does not linger after
-            // Google Play's purchase sheet returns.
-            LaunchedEffect(premiumState.premium.hasPro) {
-                if (premiumState.premium.hasPro) showUpgradePrompt = false
-            }
         }
 
         if (feedbackState.showReportDialog) {
@@ -451,32 +373,37 @@ private fun CaptionControlCard(
     ui: MainUiState,
     onStart: () -> Unit,
     onStop: () -> Unit,
-    canStart: Boolean,
-    modelMissing: Boolean = false,
-    onDownloadModel: (VoskModelInfo) -> Unit = {},
-    onManageModels: () -> Unit = {}
+    onRequestAudioPermission: () -> Unit,
+    onOpenOverlaySettings: () -> Unit,
+    onDownloadModel: () -> Unit,
+    onManageModels: () -> Unit
 ) {
     val isRunning = ui.runtime.running
     val t = LocalUiStrings.current
 
+    // What is actually blocking Start right now — the card only ever talks
+    // about the current state, never a leftover error from an earlier tap.
+    val needsMic = ui.settings.audioSource == AudioSource.MIC && !ui.micPermissionGranted
+    val needsOverlay = !ui.overlayPermissionGranted
+    val needsModel = ui.settings.sttBackend == SttBackend.LOCAL_SHERPA && ui.sherpaActiveModel == null
+    val canStart = !needsMic && !needsOverlay && !needsModel
+    val neededModel = ui.sherpaNeededModel
+    val neededState = neededModel?.let { ui.sherpaModels[it.id] }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isRunning) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceVariant
+            else MaterialTheme.colorScheme.surface
         ),
-        shape = RoundedCornerShape(16.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isRunning) 0.dp else 2.dp)
     ) {
-        Column(
-            Modifier.padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            val statusColor = when (ui.runtime.status) {
-                RecognitionStatus.LISTENING -> MaterialTheme.colorScheme.primary
-                RecognitionStatus.PROCESSING -> MaterialTheme.colorScheme.tertiary
-                RecognitionStatus.PAUSED -> MaterialTheme.colorScheme.outline
-                RecognitionStatus.ERROR -> MaterialTheme.colorScheme.error
-                RecognitionStatus.IDLE -> MaterialTheme.colorScheme.outline
+        Column(Modifier.padding(20.dp)) {
+            val statusColor = when {
+                isRunning -> MaterialTheme.colorScheme.primary
+                ui.runtime.status == RecognitionStatus.ERROR -> MaterialTheme.colorScheme.error
+                else -> MaterialTheme.colorScheme.tertiary
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
@@ -487,15 +414,19 @@ private fun CaptionControlCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = if (isRunning) t["Status"] + ": " + t[ui.runtime.status.displayName]
-                    else t["Ready"],
-                    style = MaterialTheme.typography.labelLarge
+                    text = when {
+                        isRunning -> t["Live"] + " · " + t[ui.runtime.status.displayName]
+                        ui.runtime.status == RecognitionStatus.ERROR -> t["Couldn't start"]
+                        else -> t["Ready"]
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
+
             val err = ui.runtime.lastError?.trim().orEmpty()
-            // Also show the reason when it stopped the session; that is when it matters.
-            if (err.isNotEmpty() && (isRunning || ui.runtime.status == RecognitionStatus.ERROR)) {
-                Spacer(Modifier.height(8.dp))
+            if (err.isNotEmpty() && !isRunning) {
+                Spacer(Modifier.height(6.dp))
                 Text(
                     text = err,
                     style = MaterialTheme.typography.bodySmall,
@@ -503,9 +434,8 @@ private fun CaptionControlCard(
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
-
             if (isRunning && ui.runtime.originalText.isNotBlank()) {
+                Spacer(Modifier.height(10.dp))
                 Text(
                     text = ui.runtime.originalText,
                     style = MaterialTheme.typography.bodySmall,
@@ -521,8 +451,9 @@ private fun CaptionControlCard(
                         maxLines = 2
                     )
                 }
-                Spacer(Modifier.height(12.dp))
             }
+
+            Spacer(Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
@@ -549,81 +480,82 @@ private fun CaptionControlCard(
                     Text(t["Stop"])
                 }
             }
+
             if (!isRunning && !canStart) {
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = t["Grant overlay/audio permissions and install the selected speech model before starting."],
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-            if (!isRunning && modelMissing) {
-                // A fresh install ships no speech model, so Start used to sit
-                // disabled with nothing to tap. Offer the download right here.
-                MissingModelPrompt(ui, onDownloadModel, onManageModels)
+                Spacer(Modifier.height(14.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (needsOverlay) {
+                        BlockerRow(t["Overlay permission is off"], t["Open settings"], onOpenOverlaySettings)
+                    }
+                    if (needsMic) {
+                        BlockerRow(t["Microphone permission is off"], t["Grant"], onRequestAudioPermission)
+                    }
+                    if (needsModel) {
+                        when {
+                            neededState?.downloading == true -> {
+                                LinearProgressIndicator(
+                                    progress = { neededState.progress },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    text = t.format(
+                                        "Downloading %s model… %d%%",
+                                        neededModel?.displayName ?: "",
+                                        (neededState.progress * 100).toInt()
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            neededModel != null -> {
+                                val langName = SherpaModelCatalog.LANGUAGES
+                                    .firstOrNull { it.first == ui.settings.sourceLanguageCode }?.second
+                                    ?: ui.settings.sourceLanguageCode.uppercase()
+                                BlockerRow(
+                                    t.format("Speech model for %s is not downloaded", langName),
+                                    t.format("Download · ~%d MB", neededModel.totalSizeMb),
+                                    onDownloadModel
+                                )
+                                neededState?.error?.let { modelError ->
+                                    Text(
+                                        text = modelError,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            }
+                            else -> BlockerRow(
+                                t["No on-device model for this language"],
+                                t["All models"],
+                                onManageModels
+                            )
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun MissingModelPrompt(
-    ui: MainUiState,
-    onDownloadModel: (VoskModelInfo) -> Unit,
-    onManageModels: () -> Unit
-) {
-    val t = LocalUiStrings.current
-    val source = ui.settings.sourceLanguageCode
-    val candidate = ui.voskModels
-        .filter { !it.installed && it.languageCode.equals(source, ignoreCase = true) }
-        .minByOrNull { if (it.quality == ModelQuality.SMALL) 0 else 1 }
-    Spacer(Modifier.height(8.dp))
-    when {
-        candidate == null -> {
-            val name = Language.FALLBACK.firstOrNull { it.code.equals(source, ignoreCase = true) }?.name ?: source.uppercase()
-            Text(
-                text = t.format(
-                    "There is no on-device speech model for %s here. Try the “Android built-in” engine (uses your phone's speech service, microphone only, if it supports this language) or pick another language.",
-                    name
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+private fun BlockerRow(text: String, actionLabel: String, onAction: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+            Icon(
+                Icons.Filled.Error,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(18.dp)
             )
+            Spacer(Modifier.width(8.dp))
+            Text(text, style = MaterialTheme.typography.bodySmall)
         }
-        candidate.quality == ModelQuality.LARGE -> {
-            TextButton(onClick = onManageModels) { Text(t["Manage on-device models"]) }
-        }
-        else -> {
-            val progress = ui.voskDownloadProgress[candidate.modelName]
-            val error = ui.voskDownloadErrors[candidate.modelName]
-            if (progress != null) {
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-                Text(
-                    text = t.format("Downloading %s model…", candidate.languageName),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                FilledTonalButton(
-                    onClick = { onDownloadModel(candidate) },
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        if (error != null) t.format("Retry %s model download (~%d MB)", candidate.languageName, candidate.sizeMb)
-                        else t.format("Download %s model (~%d MB)", candidate.languageName, candidate.sizeMb)
-                    )
-                }
-                if (error != null) {
-                    Text(
-                        text = t[error],
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
+        FilledTonalButton(onClick = onAction, shape = RoundedCornerShape(8.dp)) {
+            Text(actionLabel)
         }
     }
 }
@@ -637,11 +569,38 @@ private fun PermissionsCard(
     onOpenOverlaySettings: () -> Unit
 ) {
     val t = LocalUiStrings.current
+    val allGranted = ui.micPermissionGranted && ui.overlayPermissionGranted
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(t["Permissions"])
-            PermissionRow(t["Microphone"], ui.micPermissionGranted) { onRequestAudioPermission() }
-            PermissionRow(t["Overlay"], ui.overlayPermissionGranted) { onOpenOverlaySettings() }
+            if (allGranted) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.tertiary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(t["All permissions granted"], style = MaterialTheme.typography.bodyMedium)
+                }
+            } else {
+                PermissionRow(t["Microphone"], ui.micPermissionGranted) { onRequestAudioPermission() }
+                PermissionRow(t["Overlay"], ui.overlayPermissionGranted) { onOpenOverlaySettings() }
+                if (!ui.overlayPermissionGranted) {
+                    var showHelp by remember { mutableStateOf(false) }
+                    TextButton(onClick = { showHelp = !showHelp }) {
+                        Text(t["Can't turn on Overlay?"])
+                    }
+                    if (showHelp) {
+                        Text(
+                            text = t["On Android 13 and newer, apps installed outside the Play Store are blocked from this switch at first. Fix: open Settings → Apps → LiveSub Pro, tap the ⋮ menu in the top corner, choose “Allow restricted settings”, then come back and turn on “Display over other apps”."],
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -727,13 +686,6 @@ private fun AudioSourceCard(
                     modifier = Modifier.weight(1f)
                 )
                 ChoiceChip(
-                    label = if (isSttUnsupported) t["Vosk"] + " 🔒" else t["Vosk"],
-                    icon = if (isSttUnsupported) Icons.Filled.Lock else Icons.Filled.Mic,
-                    selected = ui.settings.sttBackend == SttBackend.LOCAL_VOSK,
-                    onClick = { viewModel.updateSttBackend(SttBackend.LOCAL_VOSK) },
-                    modifier = Modifier.weight(1f)
-                )
-                ChoiceChip(
                     label = if (isSystem) t["Remote"] else t["Built-in"],
                     icon = Icons.Filled.Cloud,
                     selected = ui.settings.sttBackend == SttBackend.REMOTE_WHISPER,
@@ -741,72 +693,57 @@ private fun AudioSourceCard(
                     modifier = Modifier.weight(1f)
                 )
             }
-            if (ui.settings.sttBackend == SttBackend.LOCAL_VOSK) {
-                val installed = ui.voskModels.count { it.installed }
-                val anyLargeInstalled = ui.voskModels.any { it.installed && it.quality == ModelQuality.LARGE }
-                val langWord = if (installed == 1) t["language"] else t["languages"]
-                Text(
-                    text = t["Runs transcription fully on this device."] +
-                        " $installed $langWord ${t["installed."]}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                if (!anyLargeInstalled) {
-                    Text(
-                        text = t["Tip: for noticeably stronger transcription, tap Manage models and install a LARGE server-grade model for the languages you use — 80 MB to 2 GB each, fully offline after download."],
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-                OutlinedButton(
-                    onClick = onManageModels,
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(t["Manage on-device models"])
-                }
-            } else if (ui.settings.sttBackend == SttBackend.LOCAL_SHERPA) {
-                val sherpa = ui.sherpaModel
-                Text(
-                    text = t["Newest engine: a Zipformer bilingual model with much stronger Chinese. One model covers Chinese + English, fully offline after a one-time download."],
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            if (ui.settings.sttBackend == SttBackend.LOCAL_SHERPA) {
+                val active = ui.sherpaActiveModel
+                val needed = ui.sherpaNeededModel
+                val neededState = needed?.let { ui.sherpaModels[it.id] }
                 when {
-                    sherpa.installed -> Text(
-                        text = t["Sherpa model installed and ready."],
+                    active != null -> Text(
+                        text = t.format("Model ready: %s", active.displayName),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.tertiary
                     )
-                    sherpa.downloading -> {
+                    neededState?.downloading == true -> {
                         LinearProgressIndicator(
-                            progress = { sherpa.progress },
+                            progress = { neededState.progress },
                             modifier = Modifier.fillMaxWidth()
                         )
                         Text(
-                            text = t["Downloading Sherpa model…"] + " ${(sherpa.progress * 100).toInt()}%",
+                            text = t.format("Downloading %s model… %d%%", needed?.displayName ?: "", (neededState.progress * 100).toInt()),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    else -> {
+                    needed != null -> {
+                        Text(
+                            text = t.format("This language uses the %s model.", needed.displayName),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                         OutlinedButton(
-                            onClick = { viewModel.downloadSherpaModel() },
+                            onClick = { viewModel.downloadSherpaModel(needed) },
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text(t["Download Sherpa model (~190 MB)"])
+                            Text(t.format("Download model (~%d MB)", needed.totalSizeMb))
                         }
-                        sherpa.error?.let { err ->
+                        neededState?.error?.let { modelError ->
                             Text(
-                                text = err,
+                                text = modelError,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
                     }
+                    else -> Text(
+                        text = t["No on-device model for this language yet."],
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+                TextButton(onClick = onManageModels) {
+                    Text(t["All speech models"])
                 }
             } else {
                 Text(
@@ -857,17 +794,11 @@ private fun ChoiceChip(
 private fun LanguageCard(
     ui: MainUiState,
     viewModel: MainViewModel,
-    onManageModels: () -> Unit,
-    hasPro: Boolean,
-    onRequiresPro: () -> Unit
+    onManageModels: () -> Unit
 ) {
     val sourceOptions = ui.availableSourceLanguages
     val targetOptions = ui.availableTargetLanguages
-    val usingMlKitGate = ui.settings.translationBackend == TranslationBackend.ML_KIT
     val t = LocalUiStrings.current
-    val languageRequiresPro: (Language) -> Boolean = { lang ->
-        usingMlKitGate && !hasPro && MlKitLanguages.requiresPro(lang.code)
-    }
 
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -879,9 +810,7 @@ private fun LanguageCard(
                 selectedCode = ui.settings.sourceLanguageCode,
                 options = sourceOptions,
                 placeholder = if (sourceOptions.isEmpty()) t["No languages available"] else t["Pick a language"],
-                onPick = { viewModel.updateSource(it.code) },
-                requiresPro = languageRequiresPro,
-                onRequiresPro = onRequiresPro
+                onPick = { viewModel.updateSource(it.code) }
             )
 
             // Swap + target
@@ -901,9 +830,7 @@ private fun LanguageCard(
                 selectedCode = ui.settings.targetLanguageCode,
                 options = targetOptions,
                 placeholder = if (targetOptions.isEmpty()) t["No languages available"] else t["Pick a language"],
-                onPick = { viewModel.updateTarget(it.code) },
-                requiresPro = languageRequiresPro,
-                onRequiresPro = onRequiresPro
+                onPick = { viewModel.updateTarget(it.code) }
             )
 
             // Context-specific helper text
@@ -911,16 +838,16 @@ private fun LanguageCard(
             val vmStt = ui.settings.sttBackend
             val usingMlKit = ui.settings.translationBackend == TranslationBackend.ML_KIT
             when {
-                vmAudio == AudioSource.SYSTEM && vmStt == SttBackend.LOCAL_VOSK -> {
+                vmStt == SttBackend.LOCAL_SHERPA -> {
                     Text(
-                        text = t["On-device transcription: source language is limited to the Vosk models installed on this phone."],
+                        text = t["On-device: the source list only shows languages with a Sherpa speech model."],
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     TextButton(onClick = onManageModels) {
                         Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(t["Download more languages"])
+                        Text(t["Speech models"])
                     }
                 }
                 usingMlKit -> {
@@ -1120,57 +1047,15 @@ internal fun LanguagePickerDialog(
     )
 }
 
-// ── Vosk model management ──
-
-/**
- * Shown from every Pro lock in the app (locked languages, large models, overlay
- * themes/fonts, profiles, glossary). "View upgrade options" used to only dismiss
- * this dialog, so a user who tapped a locked language had no path to the purchase
- * at all (Play review, Oct 2026). The confirm button now opens Google Play's
- * purchase sheet directly and any billing problem is shown right here.
- */
-@Composable
-internal fun ProUpgradeDialog(
-    state: PremiumUiState,
-    onGoPro: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val t = LocalUiStrings.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(t["Pro feature"]) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(t["Upgrade to Pro to unlock this feature. The upgrade removes ads and adds high-accuracy models, more languages, profiles, and advanced caption tools."])
-                state.error?.let { error ->
-                    Text(
-                        text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(enabled = !state.isBusy, onClick = onGoPro) {
-                Text(if (state.isBusy) t["Opening Google Play…"] else t["Go Pro"])
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(t["Not now"]) } }
-    )
-}
+// ── Sherpa model management ──
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VoskModelSheet(
-    models: List<VoskModelInfo>,
-    progress: Map<String, Float>,
-    hasPro: Boolean,
+private fun SherpaModelSheet(
+    states: Map<String, SherpaModelState>,
     onDismiss: () -> Unit,
-    onDownload: (VoskModelInfo) -> Unit,
-    onDelete: (VoskModelInfo) -> Unit,
-    onRequiresPro: () -> Unit,
-    errors: Map<String, String> = emptyMap()
+    onDownload: (SherpaModel) -> Unit,
+    onDelete: (SherpaModel) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val t = LocalUiStrings.current
@@ -1185,103 +1070,38 @@ private fun VoskModelSheet(
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(t["On-device speech models"], style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(t["Speech models"], style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(
-                text = t["Vosk models run fully offline on this phone. Downloading a model is a one-time step; uninstall any time to free storage. For the strongest transcription, pick the LARGE server-grade model for the languages you use most."],
+                text = t["Sherpa models run fully offline on this phone. One download per language — delete any time to free storage."],
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-
-            val installed = models.filter { it.installed }
-            val availableSmall = models.filter { !it.installed && it.quality == ModelQuality.SMALL }
-            val availableLarge = models.filter { !it.installed && it.quality == ModelQuality.LARGE }
-
-            if (installed.isNotEmpty()) {
-                Text(t["Installed"], style = MaterialTheme.typography.labelLarge)
-                installed.forEach { model ->
-                    VoskRow(
-                        model = model,
-                        progress = progress[model.modelName],
-                        error = errors[model.modelName],
-                        locked = false,
-                        onDownload = { onDownload(model) },
-                        onDelete = { onDelete(model) },
-                        onRequiresPro = onRequiresPro
-                    )
-                }
-            }
-
-            if (availableLarge.isNotEmpty()) {
-                Text(t["Large · server-grade accuracy (Pro)"], style = MaterialTheme.typography.labelLarge)
-                Text(
-                    text = t["Full Vosk server models with the lowest error rates. Each one is 80 MB to 2 GB but runs entirely on-device after the one-time download. This is the strongest transcription option for every language."],
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+            SherpaModelCatalog.ALL.forEach { model ->
+                SherpaModelRow(
+                    model = model,
+                    state = states[model.id] ?: SherpaModelState(),
+                    onDownload = { onDownload(model) },
+                    onDelete = { onDelete(model) }
                 )
-                availableLarge.forEach { model ->
-                    VoskRow(
-                        model = model,
-                        progress = progress[model.modelName],
-                        error = errors[model.modelName],
-                        locked = !hasPro,
-                        onDownload = { onDownload(model) },
-                        onDelete = { onDelete(model) },
-                        onRequiresPro = onRequiresPro
-                    )
-                }
             }
-
-            if (availableSmall.isNotEmpty()) {
-                Text(t["Small · fast & light"], style = MaterialTheme.typography.labelLarge)
-                Text(
-                    text = t["Compact ~40 MB models for quick installs or low-storage phones. Accuracy is noticeably lower than the large variants."],
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                availableSmall.forEach { model ->
-                    VoskRow(
-                        model = model,
-                        progress = progress[model.modelName],
-                        error = errors[model.modelName],
-                        locked = false,
-                        onDownload = { onDownload(model) },
-                        onDelete = { onDelete(model) },
-                        onRequiresPro = onRequiresPro
-                    )
-                }
-            }
-
-            Text(
-                text = t["Models are fetched from alphacephei.com/vosk/models over HTTPS."],
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = t["Languages without a model here (for example Indonesian) may still work from the microphone with the “Android built-in” engine, if your phone's speech service supports that language. Android may need to download the language first."],
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
             Spacer(Modifier.height(8.dp))
         }
     }
 }
 
 @Composable
-internal fun VoskRow(
-    model: VoskModelInfo,
-    progress: Float?,
-    locked: Boolean,
+private fun SherpaModelRow(
+    model: SherpaModel,
+    state: SherpaModelState,
     onDownload: () -> Unit,
-    onDelete: () -> Unit,
-    onRequiresPro: () -> Unit,
-    error: String? = null
+    onDelete: () -> Unit
 ) {
     val t = LocalUiStrings.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (model.installed)
+            containerColor = if (state.installed)
                 MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
             else MaterialTheme.colorScheme.surfaceVariant
         )
@@ -1294,65 +1114,52 @@ internal fun VoskRow(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        text = "${model.languageName} (${model.languageCode})",
+                        text = model.displayName,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold
                     )
                     Text(
-                        text = buildString {
-                            append(model.modelName)
-                            if (model.sizeMb > 0) append(" · ~${formatModelSize(model.sizeMb)}")
-                            if (model.quality == ModelQuality.LARGE) append(" · ${t["LARGE"]}")
-                            if (model.isBundled) append(" · ${t["bundled"]}")
-                        },
+                        text = "~${formatModelSize(model.totalSizeMb)}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 when {
-                    progress != null -> {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(22.dp),
-                            strokeWidth = 2.dp
-                        )
-                    }
-                    model.installed && !model.isBundled -> {
-                        IconButton(onClick = onDelete) {
-                            Icon(Icons.Filled.Delete, contentDescription = t["Delete"])
-                        }
-                    }
-                    model.installed && model.isBundled -> {
+                    state.downloading -> CircularProgressIndicator(
+                        modifier = Modifier.size(22.dp),
+                        strokeWidth = 2.dp
+                    )
+                    state.installed -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Filled.CheckCircle,
                             contentDescription = t["Installed"],
                             tint = MaterialTheme.colorScheme.primary
                         )
-                    }
-                    locked -> {
-                        FilledTonalButton(onClick = onRequiresPro, shape = RoundedCornerShape(8.dp)) {
-                            Icon(Icons.Filled.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(t["Pro"])
+                        IconButton(onClick = onDelete) {
+                            Icon(Icons.Filled.Delete, contentDescription = t["Delete"])
                         }
                     }
-                    else -> {
-                        FilledTonalButton(onClick = onDownload, shape = RoundedCornerShape(8.dp)) {
-                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text(if (error != null) t["Retry"] else t["Get"])
-                        }
+                    else -> FilledTonalButton(onClick = onDownload, shape = RoundedCornerShape(8.dp)) {
+                        Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(if (state.error != null) t["Retry"] else t["Get"])
                     }
                 }
             }
-            if (progress != null) {
+            if (state.downloading) {
                 LinearProgressIndicator(
-                    progress = { progress },
+                    progress = { state.progress },
                     modifier = Modifier.fillMaxWidth()
                 )
-            }
-            if (progress == null && error != null && !model.installed) {
                 Text(
-                    text = t[error],
+                    text = "${(state.progress * 100).toInt()}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (!state.downloading && state.error != null && !state.installed) {
+                Text(
+                    text = state.error,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.error
                 )
@@ -1374,9 +1181,7 @@ private fun formatModelSize(sizeMb: Int): String {
 @Composable
 private fun OverlaySettingsCard(
     ui: MainUiState,
-    viewModel: MainViewModel,
-    hasPro: Boolean,
-    onRequiresPro: () -> Unit
+    viewModel: MainViewModel
 ) {
     val t = LocalUiStrings.current
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
@@ -1409,7 +1214,7 @@ private fun OverlaySettingsCard(
                 )
             }
 
-            Text(t["Overlay theme (Pro)"], style = MaterialTheme.typography.bodyMedium)
+            Text(t["Overlay theme"], style = MaterialTheme.typography.bodyMedium)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1417,17 +1222,16 @@ private fun OverlaySettingsCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OverlayThemeCatalog.THEMES.forEach { theme ->
-                    val locked = !hasPro && theme.id != OverlayThemeCatalog.FREE_THEME_ID
                     ChoiceChip(
                         label = theme.label,
-                        icon = if (locked) Icons.Filled.Lock else Icons.Filled.Palette,
+                        icon = Icons.Filled.Palette,
                         selected = ui.settings.overlayThemeId == theme.id,
-                        onClick = { if (locked) onRequiresPro() else viewModel.updateOverlayTheme(theme.id) }
+                        onClick = { viewModel.updateOverlayTheme(theme.id) }
                     )
                 }
             }
 
-            Text(t["Overlay font (Pro)"], style = MaterialTheme.typography.bodyMedium)
+            Text(t["Overlay font"], style = MaterialTheme.typography.bodyMedium)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1435,12 +1239,11 @@ private fun OverlaySettingsCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OverlayFontCatalog.FONTS.forEach { font ->
-                    val locked = !hasPro && font.id != OverlayFontCatalog.FREE_FONT_ID
                     ChoiceChip(
                         label = font.label,
-                        icon = if (locked) Icons.Filled.Lock else Icons.Filled.TextFields,
+                        icon = Icons.Filled.TextFields,
                         selected = ui.settings.overlayFontId == font.id,
-                        onClick = { if (locked) onRequiresPro() else viewModel.updateOverlayFont(font.id) }
+                        onClick = { viewModel.updateOverlayFont(font.id) }
                     )
                 }
             }
@@ -1779,7 +1582,7 @@ private fun UnsupportedDeviceBanner(
                 )
             }
             Text(
-                text = "This device does not meet the minimum hardware requirements (2.5 GB RAM, 4 CPU cores) for on-device Vosk & ML Kit processing. To prevent crashes, the app has automatically enabled Remote Whisper and LibreTranslate.",
+                text = "This device does not meet the minimum hardware requirements (2.5 GB RAM, 4 CPU cores) for on-device Sherpa & ML Kit processing. To prevent crashes, the app has automatically enabled Remote Whisper and LibreTranslate.",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF37474F)
             )

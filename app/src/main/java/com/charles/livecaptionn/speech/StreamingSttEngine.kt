@@ -25,7 +25,7 @@ import kotlin.math.abs
 
 /**
  * Continuous, low-latency speech-to-text engine backed by a live
- * [VoskStreamingSession]. Reads 16kHz mono PCM from either the mic or
+ * [SherpaStreamingSession]. Reads 16kHz mono PCM from either the mic or
  * MediaProjection system-audio capture and feeds ~100ms chunks straight into
  * Vosk, emitting partial results as they evolve and final segments on
  * silence boundaries.

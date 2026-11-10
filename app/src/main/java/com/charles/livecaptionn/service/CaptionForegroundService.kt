@@ -188,33 +188,11 @@ class CaptionForegroundService : Service() {
             val sttLanguageCode = settings.sourceLanguageCode.ifBlank { "en" }
             val localeForSpeechRec = LocaleMap.bcp47(sttLanguageCode)
 
-            val premium = app.container.premiumRepository.state.first()
-            if (com.charles.livecaptionn.translation.ProStartGate.requiresPro(
-                    backend = settings.translationBackend,
-                    sourceLanguageCode = settings.sourceLanguageCode,
-                    targetLanguageCode = settings.targetLanguageCode,
-                    hasPro = premium.hasPro
-                )
-            ) {
-                failAndStop("This ML Kit language requires Pro. Choose a free language or upgrade.")
-                return@launch
-            }
             if (settings.sttBackend == SttBackend.LOCAL_SHERPA &&
-                !app.container.sherpaModelStore.isInstalled()
+                app.container.sherpaModelStore.installedModelFor(sttLanguageCode) == null
             ) {
-                failAndStop("Sherpa model not downloaded yet. Open the app and download it in the Transcription engine section.")
+                failAndStop("No speech model downloaded for '$sttLanguageCode' yet. Open the app and download it in the Speech model section.")
                 return@launch
-            }
-            if (settings.sttBackend == SttBackend.LOCAL_VOSK) {
-                val model = app.container.voskRegistry.installedModelFor(sttLanguageCode)
-                if (model == null) {
-                    failAndStop("No on-device model installed for '$sttLanguageCode'. Download one first.")
-                    return@launch
-                }
-                if (model.quality == com.charles.livecaptionn.speech.ModelQuality.LARGE && !premium.hasPro) {
-                    failAndStop("The large Vosk model requires Pro. Install or select a small model.")
-                    return@launch
-                }
             }
 
             app.container.runtimeStore.update {
@@ -299,12 +277,12 @@ class CaptionForegroundService : Service() {
             }
 
             // Routing:
-            //   LOCAL_VOSK  → streaming Vosk for both mic and system audio (preferred: low-latency, live partials)
+            //   LOCAL_SHERPA  → streaming Sherpa for both mic and system audio (low-latency, live partials)
             //   REMOTE_WHISPER:
             //       system  → legacy batch SystemAudioEngine (posts WAVs to remote Whisper)
             //       mic     → AndroidSpeechRecognizerManager (Google recognizer; kept as fallback)
             val backend = settings.sttBackend
-            val useStreaming = backend == SttBackend.LOCAL_VOSK || backend == SttBackend.LOCAL_SHERPA
+            val useStreaming = backend == SttBackend.LOCAL_SHERPA
 
             if (useStreaming) {
                 val engine = StreamingSttEngine(
@@ -312,11 +290,7 @@ class CaptionForegroundService : Service() {
                     audioSource = currentAudioSource,
                     mediaProjection = mediaProjection,
                     languageCode = sttLanguageCode,
-                    sttClient = if (backend == SttBackend.LOCAL_SHERPA) {
-                        app.container.localSherpaClient
-                    } else {
-                        app.container.localVoskClient
-                    },
+                    sttClient = app.container.localSherpaClient,
                     scope = serviceScope,
                     onResult = onSpeechResult,
                     onError = errorSink
@@ -334,7 +308,6 @@ class CaptionForegroundService : Service() {
                             languageCode = sttLanguageCode,
                             sourceLanguageCode = sttLanguageCode,
                             sttBackend = settings.sttBackend,
-                            localSttClient = app.container.localVoskClient,
                             scope = serviceScope,
                             onResult = onSpeechResult,
                             onSttError = errorSink
@@ -377,9 +350,8 @@ class CaptionForegroundService : Service() {
             combine(
                 app.container.runtimeStore.state,
                 app.container.settingsRepository.settingsFlow,
-                app.container.premiumRepository.state,
                 overlayReady
-            ) { runtime, settings, premium, _ -> Triple(runtime, settings, premium.hasPro) }
+            ) { runtime, settings, _ -> Triple(runtime, settings, true) }
                 .collectLatest { (runtime, settings, hasPro) ->
                     val overlay = overlayController ?: return@collectLatest
                     val ui = buildOverlayUi(runtime, settings, hasPro)
@@ -489,7 +461,7 @@ class CaptionForegroundService : Service() {
                 show(settings.overlayX, settings.overlayY, settings.overlayWidthDp, settings.overlayHeightDp)
             }
             val runtime = app.container.runtimeStore.state.value
-            val hasPro = app.container.premiumRepository.state.first().hasPro
+            val hasPro = true
             overlayController?.update(buildOverlayUi(runtime, settings, hasPro))
             overlayReady.value = overlayReady.value + 1
         }

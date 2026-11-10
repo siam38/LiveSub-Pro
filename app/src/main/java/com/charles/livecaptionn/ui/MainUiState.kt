@@ -4,8 +4,9 @@ import com.charles.livecaptionn.service.CaptionRuntimeState
 import com.charles.livecaptionn.settings.CaptionSettings
 import com.charles.livecaptionn.settings.Language
 import com.charles.livecaptionn.settings.TranslationBackend
+import com.charles.livecaptionn.speech.SherpaModel
+import com.charles.livecaptionn.speech.SherpaModelCatalog
 import com.charles.livecaptionn.speech.SherpaModelState
-import com.charles.livecaptionn.speech.VoskModelInfo
 import com.charles.livecaptionn.translation.MlKitLanguages
 import com.charles.livecaptionn.ui.l10n.UiLocalizationRepository.UiLocalizationStage
 import com.charles.livecaptionn.compatibility.DeviceSpecs
@@ -19,12 +20,12 @@ data class MainUiState(
     val libreLanguages: List<Language> = emptyList(),
     val libreLoading: Boolean = false,
     val libreError: String? = null,
-    val voskModels: List<VoskModelInfo> = emptyList(),
-    val voskDownloadProgress: Map<String, Float> = emptyMap(),
-    /** Last failed download per model name, shown in the model sheet. */
-    val voskDownloadErrors: Map<String, String> = emptyMap(),
-    /** Sherpa bilingual model download state (in-app download, not bundled). */
-    val sherpaModel: SherpaModelState = SherpaModelState(),
+    /** Download state per Sherpa model id, for the model sheet. */
+    val sherpaModels: Map<String, SherpaModelState> = emptyMap(),
+    /** Installed Sherpa model currently serving the source language (null = none yet). */
+    val sherpaActiveModel: SherpaModel? = null,
+    /** Recommended Sherpa model for the source language (what setup offers to download). */
+    val sherpaNeededModel: SherpaModel? = null,
     val availableUpdate: UpdateInfo? = null,
     /** True when the running APK was installed from the Google Play Store. Used
      *  to warn Play Store users before they grab a (potentially unstable)
@@ -50,29 +51,18 @@ data class MainUiState(
     val showTutorial: Boolean = false
 ) {
     /** Languages the user is allowed to pick as the speech source, given the
-     *  current audio source + STT backend combination. */
+     *  current STT backend. */
     val availableSourceLanguages: List<Language>
-        get() {
-            val installedVosk = voskModels.filter { it.installed }
-            return when (settings.sttBackend) {
-                // Vosk does the recognition for BOTH mic and system audio, so
-                // the picker has to limit to languages with an installed model
-                // either way — otherwise the user picks something we can't
-                // recognize and StreamingSttEngine errors with "No on-device
-                // model installed".
-                com.charles.livecaptionn.settings.SttBackend.LOCAL_VOSK ->
-                    installedVosk
-                        .distinctBy { it.languageCode.lowercase() }
-                        .map { Language(it.languageCode, it.languageName) }
-                // One bilingual Zipformer model covers Chinese + English.
-                com.charles.livecaptionn.settings.SttBackend.LOCAL_SHERPA ->
-                    listOf(Language("zh", "Chinese"), Language("en", "English"))
-                // Remote Whisper (system audio) and AndroidSpeechRecognizer
-                // (mic) can in principle handle any locale the translation
-                // engine supports.
-                com.charles.livecaptionn.settings.SttBackend.REMOTE_WHISPER ->
-                    translationLanguages()
-            }
+        get() = when (settings.sttBackend) {
+            // Sherpa serves both mic and system audio, but only for languages
+            // that have a downloadable model in the catalog.
+            com.charles.livecaptionn.settings.SttBackend.LOCAL_SHERPA ->
+                SherpaModelCatalog.LANGUAGES.map { (code, name) -> Language(code, name) }
+            // Remote Whisper (system audio) and AndroidSpeechRecognizer
+            // (mic) can in principle handle any locale the translation
+            // engine supports.
+            com.charles.livecaptionn.settings.SttBackend.REMOTE_WHISPER ->
+                translationLanguages()
         }
 
     /** Target language list is driven by whichever translation engine is active. */

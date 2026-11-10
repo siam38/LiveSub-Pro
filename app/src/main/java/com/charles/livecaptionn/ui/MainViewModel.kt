@@ -21,7 +21,9 @@ import com.charles.livecaptionn.di.AppContainer
 import com.charles.livecaptionn.settings.AudioSource
 import com.charles.livecaptionn.settings.SttBackend
 import com.charles.livecaptionn.settings.TranslationBackend
-import com.charles.livecaptionn.speech.VoskModelInfo
+import com.charles.livecaptionn.speech.RecognitionStatus
+import com.charles.livecaptionn.speech.SherpaModel
+import com.charles.livecaptionn.speech.SherpaModelCatalog
 import com.charles.livecaptionn.data.CaptionProfile
 import com.charles.livecaptionn.update.UpdateInfo
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,7 +52,7 @@ class MainViewModel(
                 var shouldShowUnsupported = mutableState.value.showUnsupportedModal
 
                 if (specs.tier == CompatibilityTier.UNSUPPORTED) {
-                    if (settings.sttBackend == SttBackend.LOCAL_VOSK || settings.sttBackend == SttBackend.LOCAL_SHERPA || settings.translationBackend == TranslationBackend.ML_KIT) {
+                    if (settings.sttBackend == SttBackend.LOCAL_SHERPA || settings.translationBackend == TranslationBackend.ML_KIT) {
                         shouldShowUnsupported = true
                         viewModelScope.launch {
                             container.settingsRepository.update { curr ->
@@ -72,6 +74,8 @@ class MainViewModel(
                     deviceSpecs = specs,
                     showUnsupportedModal = shouldShowUnsupported
                 )
+                refreshSherpaDerived()
+                clearStaleErrorIfReady()
             }
         }
         viewModelScope.launch {
@@ -94,6 +98,7 @@ class MainViewModel(
                     micPermissionGranted = hasMicPermission(),
                     overlayPermissionGranted = hasOverlayPermission()
                 )
+                clearStaleErrorIfReady()
             }
         }
         viewModelScope.launch {
@@ -106,23 +111,10 @@ class MainViewModel(
             }
         }
         viewModelScope.launch {
-            container.voskRegistry.models.collectLatest { models ->
-                mutableState.value = mutableState.value.copy(voskModels = models)
-            }
-        }
-        viewModelScope.launch {
-            container.voskRegistry.downloadProgress.collectLatest { progress ->
-                mutableState.value = mutableState.value.copy(voskDownloadProgress = progress)
-            }
-        }
-        viewModelScope.launch {
-            container.voskRegistry.downloadErrors.collectLatest { errors ->
-                mutableState.value = mutableState.value.copy(voskDownloadErrors = errors)
-            }
-        }
-        viewModelScope.launch {
             container.sherpaModelStore.state.collectLatest { sherpa ->
-                mutableState.value = mutableState.value.copy(sherpaModel = sherpa)
+                mutableState.value = mutableState.value.copy(sherpaModels = sherpa)
+                refreshSherpaDerived()
+                clearStaleErrorIfReady()
             }
         }
         if (BuildConfig.GITHUB_SELF_UPDATE_ENABLED) {
@@ -154,6 +146,7 @@ class MainViewModel(
             micPermissionGranted = hasMicPermission(),
             overlayPermissionGranted = hasOverlayPermission()
         )
+        clearStaleErrorIfReady()
     }
 
     fun updateSource(code: String) {
@@ -231,15 +224,46 @@ class MainViewModel(
         viewModelScope.launch { container.settingsRepository.update { it.copy(audioSource = source) } }
     }
 
-    fun downloadSherpaModel() {
-        container.sherpaModelStore.download()
+    fun downloadSherpaModel(model: SherpaModel) {
+        container.sherpaModelStore.download(model)
+    }
+
+    fun deleteSherpaModel(model: SherpaModel) {
+        container.sherpaModelStore.delete(model)
+    }
+
+    /** Recomputes which Sherpa model serves / is needed for the current source language. */
+    private fun refreshSherpaDerived() {
+        val source = mutableState.value.settings.sourceLanguageCode
+        mutableState.value = mutableState.value.copy(
+            sherpaActiveModel = container.sherpaModelStore.installedModelFor(source),
+            sherpaNeededModel = SherpaModelCatalog.defaultFor(source)
+        )
+    }
+
+    /**
+     * A failed start leaves its error in the runtime store. Once the user has
+     * actually fixed whatever blocked it (permission granted, model
+     * downloaded), clear that stale error so the screen stops contradicting
+     * itself — this was the "Ready" + "Overlay permission is required" bug.
+     */
+    private fun clearStaleErrorIfReady() {
+        val ui = mutableState.value
+        if (ui.runtime.running || ui.runtime.lastError == null) return
+        val permissionsOk = hasOverlayPermission() &&
+            (ui.settings.audioSource == AudioSource.SYSTEM || hasMicPermission())
+        val modelOk = ui.settings.sttBackend != SttBackend.LOCAL_SHERPA ||
+            container.sherpaModelStore.installedModelFor(ui.settings.sourceLanguageCode) != null
+        if (permissionsOk && modelOk) {
+            container.runtimeStore.update {
+                it.copy(lastError = null, status = RecognitionStatus.IDLE)
+            }
+        }
     }
 
     fun updateSttBackend(backend: SttBackend) {
         val specs = mutableState.value.deviceSpecs
-        if (specs?.tier == CompatibilityTier.UNSUPPORTED &&
-            (backend == SttBackend.LOCAL_VOSK || backend == SttBackend.LOCAL_SHERPA)
-        ) {
+        if (specs?.tier == CompatibilityTier.UNSUPPORTED && backend == SttBackend.LOCAL_SHERPA) {
             mutableState.value = mutableState.value.copy(showUnsupportedModal = true)
             return
         }
@@ -305,15 +329,6 @@ class MainViewModel(
             container.settingsRepository.update { it.copy(onboardingComplete = true) }
             container.uiLocalization.select(languageCode)
         }
-    }
-
-    fun downloadVoskModel(model: VoskModelInfo) {
-        viewModelScope.launch { container.voskRegistry.downloadAndInstall(model) }
-    }
-
-    fun deleteVoskModel(model: VoskModelInfo) {
-        if (model.isBundled) return
-        viewModelScope.launch { container.voskRegistry.uninstall(model.modelName) }
     }
 
     fun openOverlayPermissionSettings(context: Context) {

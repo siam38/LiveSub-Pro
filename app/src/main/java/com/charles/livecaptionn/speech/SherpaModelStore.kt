@@ -22,52 +22,59 @@ data class SherpaModelState(
     val error: String? = null
 )
 
-// The Sherpa bilingual (zh-en) Zipformer model is too big to bundle in the
-// APK, so it downloads once in-app — same pattern as the Vosk models.
+// Sherpa models are far too big to bundle in the APK, so each one downloads
+// in-app on demand — one shared store for the whole catalog.
 class SherpaModelStore(context: Context) {
 
     private val appContext = context.applicationContext
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    private val mutableState = MutableStateFlow(SherpaModelState(installed = isInstalled()))
-    val state: StateFlow<SherpaModelState> = mutableState.asStateFlow()
+    private val mutableState = MutableStateFlow(
+        SherpaModelCatalog.ALL.associate { it.id to SherpaModelState(installed = isInstalled(it)) }
+    )
+    val state: StateFlow<Map<String, SherpaModelState>> = mutableState.asStateFlow()
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(120, TimeUnit.SECONDS)
         .build()
 
-    fun modelDir(): File = File(appContext.filesDir, "sherpa/bilingual-zh-en")
+    fun modelDir(model: SherpaModel): File = File(appContext.filesDir, "sherpa/${model.id}")
 
-    fun isInstalled(): Boolean {
-        val dir = modelDir()
-        return FILES.all { (name, minBytes) ->
-            val f = File(dir, name)
-            f.exists() && f.length() >= minBytes
+    fun isInstalled(model: SherpaModel): Boolean {
+        val dir = modelDir(model)
+        return model.files.all { spec ->
+            val f = File(dir, spec.name)
+            f.exists() && f.length() >= spec.sizeBytes
         }
     }
 
-    fun download() {
-        if (mutableState.value.downloading || isInstalled()) return
+    /** First installed model that can serve [languageCode], best first. */
+    fun installedModelFor(languageCode: String): SherpaModel? =
+        SherpaModelCatalog.modelsFor(languageCode).firstOrNull { isInstalled(it) }
+
+    fun download(model: SherpaModel) {
+        if (mutableState.value[model.id]?.downloading == true || isInstalled(model)) return
         scope.launch {
-            mutableState.value = SherpaModelState(downloading = true)
+            update(model.id, SherpaModelState(downloading = true))
             try {
-                val dir = modelDir().apply { mkdirs() }
-                val totalBytes = FILES.sumOf { it.second }
+                val dir = modelDir(model).apply { mkdirs() }
                 var doneBytes = 0L
-                for ((name, minBytes) in FILES) {
-                    val target = File(dir, name)
-                    if (target.exists() && target.length() >= minBytes) {
+                val totalBytes = model.totalSizeBytes
+                for (spec in model.files) {
+                    val target = File(dir, spec.name)
+                    if (target.exists() && target.length() >= spec.sizeBytes) {
                         doneBytes += target.length()
                         continue
                     }
-                    val part = File(dir, "$name.part")
-                    val request = Request.Builder().url(BASE_URL + name).build()
+                    val part = File(dir, "${spec.name}.part")
+                    val request = Request.Builder().url(model.fileUrl(spec.name)).build()
                     client.newCall(request).execute().use { response ->
                         if (!response.isSuccessful) {
-                            throw IllegalStateException("HTTP ${response.code} for $name")
+                            throw IllegalStateException("HTTP ${response.code} for ${spec.name}")
                         }
-                        val body = response.body ?: throw IllegalStateException("Empty body for $name")
+                        val body = response.body
+                            ?: throw IllegalStateException("Empty body for ${spec.name}")
                         body.byteStream().use { input ->
                             FileOutputStream(part).use { output ->
                                 val buffer = ByteArray(64 * 1024)
@@ -76,9 +83,12 @@ class SherpaModelStore(context: Context) {
                                     if (read <= 0) break
                                     output.write(buffer, 0, read)
                                     doneBytes += read
-                                    mutableState.value = SherpaModelState(
-                                        downloading = true,
-                                        progress = (doneBytes.toFloat() / totalBytes).coerceIn(0f, 1f)
+                                    update(
+                                        model.id,
+                                        SherpaModelState(
+                                            downloading = true,
+                                            progress = (doneBytes.toFloat() / totalBytes).coerceIn(0f, 1f)
+                                        )
                                     )
                                 }
                             }
@@ -89,31 +99,30 @@ class SherpaModelStore(context: Context) {
                         part.delete()
                     }
                 }
-                mutableState.value = SherpaModelState(installed = isInstalled())
-                if (!mutableState.value.installed) {
-                    mutableState.value = SherpaModelState(error = "Download finished but files look incomplete. Try again.")
+                if (isInstalled(model)) {
+                    update(model.id, SherpaModelState(installed = true))
+                } else {
+                    update(model.id, SherpaModelState(error = "Download finished but files look incomplete. Try again."))
                 }
             } catch (t: Throwable) {
-                Log.w(TAG, "Sherpa model download failed", t)
-                mutableState.value = SherpaModelState(
-                    error = "Download failed: ${t.message ?: t::class.java.simpleName}"
-                )
+                Log.w(TAG, "Download failed for ${model.id}", t)
+                update(model.id, SherpaModelState(error = "Download failed: ${t.message ?: t::class.java.simpleName}"))
             }
         }
     }
 
+    fun delete(model: SherpaModel) {
+        scope.launch {
+            try { modelDir(model).deleteRecursively() } catch (_: Throwable) {}
+            update(model.id, SherpaModelState(installed = false))
+        }
+    }
+
+    private fun update(id: String, state: SherpaModelState) {
+        mutableState.value = mutableState.value + (id to state)
+    }
+
     companion object {
         private const val TAG = "SherpaModelStore"
-        private const val BASE_URL =
-            "https://huggingface.co/csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20/resolve/main/"
-
-        // File name -> expected size in bytes (download is incomplete below this).
-        val FILES: List<Pair<String, Long>> = listOf(
-            "encoder-epoch-99-avg-1.int8.onnx" to 181_895_032L,
-            "decoder-epoch-99-avg-1.onnx" to 13_876_452L,
-            "joiner-epoch-99-avg-1.int8.onnx" to 3_228_404L,
-            "tokens.txt" to 56_317L
-        )
-        const val TOTAL_SIZE_MB = 190
     }
 }

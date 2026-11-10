@@ -73,48 +73,9 @@ android {
         val defaultStt = sanitizeServerUrl(localProps.getProperty("stt.url"), "http://localhost:9000/asr?output=json")
         buildConfigField("String", "DEFAULT_TRANSLATE_URL", "\"$defaultTranslate\"")
         buildConfigField("String", "DEFAULT_STT_URL", "\"$defaultStt\"")
-        buildConfigField("boolean", "ADS_ENABLED", localBool("ads.enabled", true).toString())
-        buildConfigField(
-            "String",
-            "ADMOB_APP_ID",
-            "\"${localProps.getProperty("ads.admob.app.id", "ca-app-pub-3940256099942544~3347511713")}\""
-        )
-        buildConfigField(
-            "String",
-            "ADMOB_APP_OPEN_ID_DEBUG",
-            "\"${localProps.getProperty("ads.admob.app.open.id.debug", "ca-app-pub-3940256099942544/9257395921")}\""
-        )
-        buildConfigField(
-            "String",
-            "ADMOB_APP_OPEN_ID_RELEASE",
-            "\"${localProps.getProperty("ads.admob.app.open.id.release", "")}\""
-        )
-        buildConfigField(
-            "String",
-            "ADMOB_BANNER_ID_DEBUG",
-            "\"${localProps.getProperty("ads.admob.banner.id.debug", "ca-app-pub-3940256099942544/9214589741")}\""
-        )
-        buildConfigField(
-            "String",
-            "ADMOB_BANNER_ID_RELEASE",
-            "\"${localProps.getProperty("ads.admob.banner.id.release", "")}\""
-        )
-        buildConfigField(
-            "String",
-            "ADMOB_NATIVE_ID_DEBUG",
-            "\"${localProps.getProperty("ads.admob.native.id.debug", "ca-app-pub-3940256099942544/2247696110")}\""
-        )
-        buildConfigField(
-            "String",
-            "ADMOB_NATIVE_ID_RELEASE",
-            "\"${localProps.getProperty("ads.admob.native.id.release", "")}\""
-        )
-        manifestPlaceholders["admobAppId"] =
-            localProps.getProperty("ads.admob.app.id", "ca-app-pub-3940256099942544~3347511713")
-
         // GitHub repo that the in-app update checker queries for new releases.
         buildConfigField("String", "UPDATE_REPO_OWNER", "\"siam38\"")
-        buildConfigField("String", "UPDATE_REPO_NAME", "\"LiveTranscribe-Android\"")
+        buildConfigField("String", "UPDATE_REPO_NAME", "\"LiveSub-Pro\"")
 
     }
 
@@ -124,28 +85,10 @@ android {
             dimension = "distribution"
             isDefault = true
             buildConfigField("boolean", "GITHUB_SELF_UPDATE_ENABLED", "true")
-            // Cloudflare Worker (Stripe billing backend) config. Not committed —
-            // sourced from local.properties, same pattern as translate.url/stt.url.
-            buildConfigField("String", "PREMIUM_WORKER_BASE_URL",
-                "\"${localProps.getProperty("premium.worker.url", "")}\"")
-            buildConfigField("String", "STRIPE_PRICE_AD_FREE",
-                "\"${localProps.getProperty("premium.stripe.price.ad_free", "")}\"")
-            buildConfigField("String", "STRIPE_PRICE_PRO",
-                "\"${localProps.getProperty("premium.stripe.price.pro", "")}\"")
-            // Owner-only free-access key. Blank in public/CI builds; only ever set
-            // in the developer's own local.properties. Must match the Worker's
-            // OWNER_ACCESS_KEY secret for the OWNER_ALLOWLIST bypass to apply —
-            // knowing the owner's email alone is not enough (see worker.js).
-            buildConfigField("String", "OWNER_ACCESS_KEY",
-                "\"${localProps.getProperty("premium.owner.access_key", "")}\"")
         }
         create("playstore") {
             dimension = "distribution"
             buildConfigField("boolean", "GITHUB_SELF_UPDATE_ENABLED", "false")
-            // Play Billing subscription product IDs, configured once in Play Console.
-            // Not secrets, so hardcoded here rather than sourced from local.properties.
-            buildConfigField("String", "PLAY_PRODUCT_AD_FREE", "\"ad_free_monthly\"")
-            buildConfigField("String", "PLAY_PRODUCT_PRO", "\"pro_monthly\"")
         }
     }
 
@@ -218,7 +161,6 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.squareup.moshi:moshi-kotlin:1.15.1")
-    implementation("com.alphacephei:vosk-android:0.3.75")
     // sherpa-onnx runtime (Zipformer streaming ASR). The AAR is fetched by CI
     // into app/libs/ from the official sherpa-onnx GitHub release.
     implementation(files("libs/sherpa-onnx.aar"))
@@ -236,7 +178,6 @@ dependencies {
 
     // Google Mobile Ads (AdMob). Powers the banner at the bottom of the
     // main UI and the app-open ad.
-    implementation("com.google.android.gms:play-services-ads:23.6.0")
 
     // ProcessLifecycleOwner — used by AppOpenAdManager to detect when the
     // app comes to the foreground so the app-open ad can be shown.
@@ -248,14 +189,12 @@ dependencies {
     // Play In-App Review — lets happy users leave a Play Store rating
     // without leaving the app. No-ops gracefully when Play Store isn't
     // installed (e.g. sideloaded github-flavor builds).
-    implementation("com.google.android.play:review-ktx:2.0.2")
 
     // Play Billing — playstore flavor only. Gradle auto-creates the
     // "playstoreImplementation" configuration from the flavor name; this is
     // what guarantees zero Play Billing code ships in the github flavor APK.
     // Pinned to 9.1.0 to satisfy Google Play's Aug 31, 2026 requirement that
     // all apps use Billing Library 8.0.0+ (9 recommended for latest features).
-    "playstoreImplementation"("com.android.billingclient:billing-ktx:9.1.0")
 
     // Chrome Custom Tabs — github flavor only, used to open Stripe Checkout /
     // Customer Portal URLs in-browser. No Stripe SDK, keys, or card UI is ever

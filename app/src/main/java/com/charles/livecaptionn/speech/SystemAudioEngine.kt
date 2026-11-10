@@ -32,7 +32,6 @@ class SystemAudioEngine(
     private val languageCode: String?,
     private val sourceLanguageCode: String,
     private val sttBackend: SttBackend,
-    private val localSttClient: LocalVoskSttClient,
     private val scope: CoroutineScope,
     private val onResult: (SpeechResult) -> Unit,
     /** Null clears any STT error hint after a successful round-trip to the server. */
@@ -144,10 +143,7 @@ class SystemAudioEngine(
         statusMutable.value = RecognitionStatus.LISTENING
 
         captureJob = scope.launch(Dispatchers.Default) {
-            val chunkSeconds = when (sttBackend) {
-                SttBackend.LOCAL_VOSK, SttBackend.LOCAL_SHERPA -> LOCAL_CHUNK_SECONDS
-                SttBackend.REMOTE_WHISPER -> REMOTE_CHUNK_SECONDS
-            }
+            val chunkSeconds = REMOTE_CHUNK_SECONDS
             val chunkBytes = SAMPLE_RATE * 2 * chunkSeconds // 16-bit mono = 2 bytes/sample
             val readBuffer = ByteArray(4096)
             var consecutiveSilentChunks = 0
@@ -199,15 +195,10 @@ class SystemAudioEngine(
 
                 consecutiveSilentChunks = 0
                 statusMutable.value = RecognitionStatus.PROCESSING
-                val outcome = when (sttBackend) {
-                    SttBackend.REMOTE_WHISPER -> {
-                        val wavData = WavEncoder.encode(pcmData, SAMPLE_RATE)
-                        sttClient.transcribe(wavData, sttUrl, languageCode)
-                    }
-                    SttBackend.LOCAL_VOSK, SttBackend.LOCAL_SHERPA -> {
-                        localSttClient.transcribe(pcmData, SAMPLE_RATE, sourceLanguageCode)
-                    }
-                }
+                // This engine only serves the remote Whisper backend now;
+                // on-device Sherpa streams through StreamingSttEngine instead.
+                val wavData = WavEncoder.encode(pcmData, SAMPLE_RATE)
+                val outcome = sttClient.transcribe(wavData, sttUrl, languageCode)
                 val err = outcome.errorMessage
                 if (err != null) {
                     onSttError(err)

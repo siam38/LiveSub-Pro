@@ -4,7 +4,6 @@ import com.charles.livecaptionn.settings.CaptionSettings
 import com.charles.livecaptionn.settings.Language
 import com.charles.livecaptionn.settings.SttBackend
 import com.charles.livecaptionn.settings.TranslationBackend
-import com.charles.livecaptionn.speech.VoskModelInfo
 import com.charles.livecaptionn.ui.MainUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -53,28 +52,18 @@ class MainUiStateFilterTest {
     }
 
     @Test
-    fun availableSourceLanguages_vosk_filtersByInstalledModels() {
+    fun availableSourceLanguages_sherpa_returnsCatalogLanguages() {
         val state = defaultState().copy(
-            settings = defaultSettings().copy(sttBackend = SttBackend.LOCAL_VOSK),
-            voskModels = listOf(
-                VoskModelInfo("en", "English", "model-en", 40, installed = true),
-                VoskModelInfo("vi", "Vietnamese", "model-vi", 32, installed = true),
-                VoskModelInfo("es", "Spanish", "model-es", 39, installed = false)
-            )
+            settings = defaultSettings().copy(sttBackend = SttBackend.LOCAL_SHERPA)
         )
         val sources = state.availableSourceLanguages
-        assertEquals(2, sources.size)
+        assertTrue(sources.any { it.code == "zh" })
         assertTrue(sources.any { it.code == "en" })
-        assertTrue(sources.any { it.code == "vi" })
-    }
-
-    @Test
-    fun voskWithNoModels_returnsEmpty() {
-        val state = defaultState().copy(
-            settings = defaultSettings().copy(sttBackend = SttBackend.LOCAL_VOSK),
-            voskModels = emptyList()
-        )
-        assertTrue(state.availableSourceLanguages.isEmpty())
+        assertTrue(sources.any { it.code == "ko" })
+        assertTrue(sources.any { it.code == "ja" })
+        // No streaming Sherpa model exists for these — must not be offered.
+        assertTrue(sources.none { it.code == "de" })
+        assertTrue(sources.none { it.code == "es" })
     }
 
     private fun defaultState() = MainUiState()

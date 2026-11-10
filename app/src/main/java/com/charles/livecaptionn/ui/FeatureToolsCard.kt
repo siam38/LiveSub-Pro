@@ -35,22 +35,19 @@ import com.charles.livecaptionn.data.CaptionProfileRepository
 import com.charles.livecaptionn.data.GlossaryEntry
 import com.charles.livecaptionn.data.GlossaryRepository
 import com.charles.livecaptionn.settings.CaptionSettings
-import com.charles.livecaptionn.speech.VoskModelInfo
 import com.charles.livecaptionn.ui.l10n.LocalUiStrings
 import kotlinx.coroutines.launch
 
 @Composable
 fun FeatureToolsCard(
     settings: CaptionSettings,
-    hasPro: Boolean,
     profiles: CaptionProfileRepository,
     glossary: GlossaryRepository,
     micPermissionGranted: Boolean,
     overlayPermissionGranted: Boolean,
-    voskModels: List<VoskModelInfo>,
+    modelReady: Boolean,
     onApplyProfile: (CaptionProfile) -> Unit,
     onSaveHistoryChange: (Boolean) -> Unit,
-    onRequiresPro: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val t = LocalUiStrings.current
@@ -68,9 +65,6 @@ fun FeatureToolsCard(
     Card(modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(t["Tools and privacy"])
-            val modelReady = settings.sttBackend.name != "LOCAL_VOSK" || voskModels.any {
-                it.installed && it.languageCode.equals(settings.sourceLanguageCode, ignoreCase = true)
-            }
             Text(
                 t[if (overlayPermissionGranted && (settings.audioSource.name == "SYSTEM" || micPermissionGranted) && modelReady)
                     "Ready to start captioning"
@@ -98,18 +92,16 @@ fun FeatureToolsCard(
                     profileItems = profileItems.filterNot { it.name == profile.name } + profile
                 }) { Text(t["Save preset"]) }
                 OutlinedButton(onClick = {
-                    if (hasPro) {
-                        val profile = CaptionProfile(
-                            name = t["Pro setup"],
-                            sourceLanguage = settings.sourceLanguageCode,
-                            targetLanguage = settings.targetLanguageCode,
-                            textSizeSp = settings.textSizeSp,
-                            showOriginal = settings.showOriginal,
-                            proOnly = true
-                        )
-                        scope.launch { profiles.save(profile) }
-                        profileItems = profileItems.filterNot { it.name == profile.name } + profile
-                    } else onRequiresPro()
+                    val profile = CaptionProfile(
+                        name = t["Pro setup"],
+                        sourceLanguage = settings.sourceLanguageCode,
+                        targetLanguage = settings.targetLanguageCode,
+                        textSizeSp = settings.textSizeSp,
+                        showOriginal = settings.showOriginal,
+                        proOnly = true
+                    )
+                    scope.launch { profiles.save(profile) }
+                    profileItems = profileItems.filterNot { it.name == profile.name } + profile
                 }) { Text(t["Save Pro preset"]) }
             }
             if (profileItems.isNotEmpty()) {
@@ -117,7 +109,7 @@ fun FeatureToolsCard(
                     items(profileItems, key = { it.id }) { profile ->
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(profile.name, Modifier.weight(1f))
-                            TextButton(onClick = { if (!profile.proOnly || hasPro) onApplyProfile(profile) else onRequiresPro() }) { Text(t["Use"]) }
+                            TextButton(onClick = { onApplyProfile(profile) }) { Text(t["Use"]) }
                             IconButton(onClick = {
                                 scope.launch { profiles.delete(profile.id) }
                                 profileItems = profileItems.filterNot { it.id == profile.id }
@@ -128,9 +120,9 @@ fun FeatureToolsCard(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(t["Glossary and phrase replacements"], Modifier.weight(1f))
-                TextButton(onClick = { if (hasPro) showGlossaryDialog = true else onRequiresPro() }) {
+                TextButton(onClick = { showGlossaryDialog = true }) {
                     Icon(Icons.Filled.Add, contentDescription = null)
-                    Text(t["Add Pro"])
+                    Text(t["Add"])
                 }
             }
             glossaryItems.forEach { entry ->

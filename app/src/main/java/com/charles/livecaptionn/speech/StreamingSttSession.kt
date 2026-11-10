@@ -1,9 +1,15 @@
 package com.charles.livecaptionn.speech
 
+/** Result of feeding one PCM chunk: current text, and whether a pause
+ *  boundary finalized it into a completed segment. */
+data class SttFeedResult(
+    val text: String,
+    val accepted: Boolean
+)
+
 // One live recognition session: PCM in, partial/final text out.
-// Implemented by the Vosk and Sherpa on-device engines.
 interface StreamingSttSession {
-    fun feed(pcm: ByteArray, length: Int = pcm.size): VoskStreamingSession.FeedResult
+    fun feed(pcm: ByteArray, length: Int = pcm.size): SttFeedResult
     fun finish(): String
     fun close()
 }
