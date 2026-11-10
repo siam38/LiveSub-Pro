@@ -1,0 +1,29 @@
+*.iml
+.gradle/
+/local.properties
+/keystore.properties
+/.idea/
+/build
+/captures
+.externalNativeBuild
+.cxx
+**/build/
+.DS_Store
+*.apk
+*.aab
+*.jks
+*.keystore
+overlay_state.png
+*.png.tmp
+
+# Vosk model blobs — downloaded locally, not committed
+/app/src/main/assets/models/
+
+# Google Services JSON — generated from CI secret GOOGLE_SERVICES_JSON_B64
+/app/google-services.json
+
+# local tooling artifacts
+/.playwright-mcp/
+/Download/
+.kotlin/
+/scratch/
