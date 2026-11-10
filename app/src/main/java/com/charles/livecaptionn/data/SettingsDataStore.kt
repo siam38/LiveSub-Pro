@@ -67,7 +67,7 @@ class SettingsDataStore(private val context: Context) : SettingsRepository {
             overlayX = this[OVERLAY_X] ?: 60,
             overlayY = this[OVERLAY_Y] ?: 220,
             overlayMinimized = this[OVERLAY_MIN] ?: false,
-            audioSource = AudioSource.fromName(this[AUDIO_SOURCE] ?: AudioSource.MIC.name),
+            audioSource = AudioSource.fromName(this[AUDIO_SOURCE] ?: AudioSource.SYSTEM.name),
             sttBackend = SttBackend.fromName(this[STT_BACKEND] ?: SttBackend.LOCAL_SHERPA.name),
             translationBackend = TranslationBackend.fromName(this[TRANSLATION_BACKEND]),
             sttBaseUrl = this[STT_URL] ?: CaptionSettings.DEFAULT_STT_URL,

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -554,7 +555,11 @@ private fun BlockerRow(text: String, actionLabel: String, onAction: () -> Unit) 
             Spacer(Modifier.width(8.dp))
             Text(text, style = MaterialTheme.typography.bodySmall)
         }
-        FilledTonalButton(onClick = onAction, shape = RoundedCornerShape(8.dp)) {
+        FilledTonalButton(
+            onClick = onAction,
+            shape = RoundedCornerShape(8.dp),
+            modifier = Modifier.defaultMinSize(minWidth = 140.dp, minHeight = 40.dp)
+        ) {
             Text(actionLabel)
         }
     }
@@ -625,7 +630,11 @@ private fun PermissionRow(label: String, granted: Boolean, onGrant: () -> Unit) 
             Text(label, style = MaterialTheme.typography.bodyMedium)
         }
         if (!granted) {
-            FilledTonalButton(onClick = onGrant, shape = RoundedCornerShape(8.dp)) { Text(t["Grant"]) }
+            FilledTonalButton(
+                onClick = onGrant,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.width(140.dp).height(40.dp)
+            ) { Text(t["Grant"]) }
         }
     }
 }

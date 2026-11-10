@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -114,13 +115,17 @@ fun OnboardingScreen(
                     t["LiveSub Pro"],
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     t["Live captions & translation on your device"],
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         }
@@ -298,7 +303,13 @@ private fun SetupPermissionRow(
             }
         }
         if (!granted) {
-            FilledTonalButton(onClick = onAction, shape = RoundedCornerShape(8.dp)) {
+            // Fixed size so every permission row's button looks identical,
+            // whatever its label ("Grant" vs "Open settings").
+            FilledTonalButton(
+                onClick = onAction,
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.width(140.dp).height(40.dp)
+            ) {
                 Text(actionLabel)
             }
         }

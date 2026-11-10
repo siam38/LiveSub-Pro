@@ -10,6 +10,8 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.media.projection.MediaProjection
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.charles.livecaptionn.settings.AudioSource
@@ -104,6 +106,17 @@ class StreamingSttEngine(
             return
         }
         session = localSession
+
+        // Android 14+ requires a registered callback on the projection
+        // before any capture starts, or AudioRecord never records.
+        if (audioSource == AudioSource.SYSTEM && mediaProjection != null) {
+            try {
+                mediaProjection.registerCallback(
+                    object : MediaProjection.Callback() {},
+                    Handler(Looper.getMainLooper())
+                )
+            } catch (_: Throwable) {}
+        }
 
         val record = try {
             buildAudioRecord()

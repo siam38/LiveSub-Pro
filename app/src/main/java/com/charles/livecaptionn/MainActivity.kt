@@ -43,6 +43,10 @@ class MainActivity : ComponentActivity() {
 
     private var showHistory by mutableStateOf(false)
 
+    // Audio source snapshot taken when the projection consent is launched,
+    // so the service starts with exactly the source the user tapped Start on.
+    private var pendingProjectionSource: AudioSource? = null
+
     private val audioPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -52,9 +56,11 @@ class MainActivity : ComponentActivity() {
     private val mediaProjectionLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        val source = pendingProjectionSource ?: AudioSource.SYSTEM
+        pendingProjectionSource = null
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
             MediaProjectionHolder.set(result.resultCode, result.data!!.clone() as Intent)
-            startCaptionService(AudioSource.SYSTEM)
+            startCaptionService(source)
         } else {
             (application as LiveCaptionApp).container.runtimeStore.update {
                 it.copy(
@@ -139,6 +145,7 @@ class MainActivity : ComponentActivity() {
                     } else {
                         mpManager.createScreenCaptureIntent()
                     }
+                    pendingProjectionSource = settings.audioSource
                     mediaProjectionLauncher.launch(captureIntent)
                 }
                 AudioSource.MIC -> {

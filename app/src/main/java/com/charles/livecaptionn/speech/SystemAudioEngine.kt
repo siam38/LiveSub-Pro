@@ -91,6 +91,13 @@ class SystemAudioEngine(
             stop()
             return
         }
+        // Android 14+ requires a registered callback before capture starts.
+        try {
+            projection.registerCallback(
+                object : MediaProjection.Callback() {},
+                android.os.Handler(android.os.Looper.getMainLooper())
+            )
+        } catch (_: Throwable) {}
         val config = AudioPlaybackCaptureConfiguration.Builder(projection)
             .addMatchingUsage(AudioAttributes.USAGE_MEDIA)
             .addMatchingUsage(AudioAttributes.USAGE_GAME)

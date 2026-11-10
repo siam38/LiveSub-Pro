@@ -21,8 +21,8 @@ class CaptionSettingsTest {
     }
 
     @Test
-    fun defaults_audioSource_isMic() {
-        assertEquals(AudioSource.MIC, CaptionSettings().audioSource)
+    fun defaults_audioSource_isSystem() {
+        assertEquals(AudioSource.SYSTEM, CaptionSettings().audioSource)
     }
 
     @Test

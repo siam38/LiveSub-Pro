@@ -195,9 +195,31 @@ class CaptionForegroundService : Service() {
                 return@launch
             }
 
+            // System audio needs the MediaProjection consent result BEFORE
+            // anything reports a running session: without it there is no
+            // capture at all, and claiming "Listening" would be a lie.
+            val mediaProjection = if (currentAudioSource == AudioSource.SYSTEM) {
+                val mpManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+                val data = MediaProjectionHolder.data
+                if (data == null) {
+                    Log.e("CaptionService", "MediaProjection data missing.")
+                    failAndStop("System-audio capture permission is missing. Start again and allow capture.")
+                    return@launch
+                }
+                mpManager.getMediaProjection(MediaProjectionHolder.resultCode, data)
+                    ?: run {
+                        failAndStop("System-audio capture could not be initialized. Try again.")
+                        return@launch
+                    }
+            } else {
+                null
+            }
+
             app.container.runtimeStore.update {
-                // Clear a reason left over from an earlier failed start.
-                it.copy(running = true, paused = false, status = RecognitionStatus.LISTENING, lastError = null)
+                // Running, but NOT "Listening" yet — the engine's own status
+                // (observed below) only reports LISTENING once AudioRecord is
+                // actually recording. Clear any leftover error from before.
+                it.copy(running = true, paused = false, status = RecognitionStatus.IDLE, lastError = null)
             }
 
             // Prewarm the active translation backend so the first spoken
@@ -253,23 +275,6 @@ class CaptionForegroundService : Service() {
                 val effectiveId = app.container.runtimeStore.state.value
                     .transcriptLines.lastOrNull()?.id ?: candidateId
                 queueTranslation(transcript, effectiveId, result.isFinal)
-            }
-
-            val mediaProjection = if (currentAudioSource == AudioSource.SYSTEM) {
-                val mpManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                val data = MediaProjectionHolder.data
-                if (data == null) {
-                    Log.e("CaptionService", "MediaProjection data missing.")
-                    failAndStop("System-audio capture permission is missing. Start again and allow capture.")
-                    return@launch
-                }
-                mpManager.getMediaProjection(MediaProjectionHolder.resultCode, data)
-                    ?: run {
-                        failAndStop("System-audio capture could not be initialized. Try again.")
-                        return@launch
-                    }
-            } else {
-                null
             }
 
             val errorSink: (String?) -> Unit = { msg ->

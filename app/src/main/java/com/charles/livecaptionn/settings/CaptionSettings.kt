@@ -13,7 +13,10 @@ data class CaptionSettings(
     val overlayX: Int = 60,
     val overlayY: Int = 220,
     val overlayMinimized: Boolean = false,
-    val audioSource: AudioSource = AudioSource.MIC,
+    // Default is System Audio: the app's main job is captioning videos and
+    // streams playing on the phone. Defaulting to MIC meant Start never
+    // asked for screen-share consent and silently recorded the microphone.
+    val audioSource: AudioSource = AudioSource.SYSTEM,
     val sttBackend: SttBackend = SttBackend.LOCAL_SHERPA,
     val translationBackend: TranslationBackend = TranslationBackend.ML_KIT,
     val sttBaseUrl: String = DEFAULT_STT_URL,
