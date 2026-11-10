@@ -56,14 +56,11 @@ jobs:
           ads.enabled=false
           EOF
 
-      - name: Bundle Vosk speech models (Chinese + English)
+      - name: Fetch sherpa-onnx runtime AAR
         run: |
-          mkdir -p app/src/main/assets/models /tmp/vosk
-          curl -sL -o /tmp/vosk/zh.zip "https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip"
-          curl -sL -o /tmp/vosk/en.zip "https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip"
-          unzip -q -o /tmp/vosk/zh.zip -d app/src/main/assets/models/
-          unzip -q -o /tmp/vosk/en.zip -d app/src/main/assets/models/
-          ls app/src/main/assets/models/
+          mkdir -p app/libs
+          curl -fL --retry 3 -o app/libs/sherpa-onnx.aar "https://github.com/k2-fsa/sherpa-onnx/releases/download/v2.0.1/sherpa-onnx-2.0.1.aar"
+          ls -la app/libs/
 
       - name: Fetch gradle wrapper jar from upstream
         run: curl -sL -o gradle/wrapper/gradle-wrapper.jar "https://raw.githubusercontent.com/chartmann1590/LiveTranscribe-Android/main/gradle/wrapper/gradle-wrapper.jar"
