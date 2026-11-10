@@ -57,7 +57,12 @@ class UpdateChecker {
                 }
                 val body = response.body?.string().orEmpty()
                 val parsed = parseRelease(body) ?: return@withContext null
-                if (parsed.buildNumber > BuildConfig.VERSION_CODE) {
+                // buildNumber is semver-encoded (v1.0.18 -> 1000018), so the
+                // local version must be encoded the same way before comparing.
+                // Comparing against the raw VERSION_CODE (18) made every
+                // release look newer forever, even the one already installed.
+                val localEncoded = parseBuildNumber("v" + BuildConfig.VERSION_NAME)
+                if (localEncoded == null || parsed.buildNumber > localEncoded) {
                     mutable.value = parsed
                     parsed
                 } else {
@@ -83,7 +88,9 @@ class UpdateChecker {
             val tag = obj.optString("tag_name").takeIf { it.isNotBlank() } ?: return null
             val buildNumber = parseBuildNumber(tag) ?: return null
             val name = obj.optString("name").ifBlank { "LiveCaptionN $tag" }
+            // org.json returns the literal string "null" for a JSON null body.
             val notes = obj.optString("body").trim()
+                .takeUnless { it.equals("null", ignoreCase = true) } ?: ""
             val htmlUrl = obj.optString("html_url")
                 .ifBlank { "https://github.com/${BuildConfig.UPDATE_REPO_OWNER}/${BuildConfig.UPDATE_REPO_NAME}/releases/latest" }
 

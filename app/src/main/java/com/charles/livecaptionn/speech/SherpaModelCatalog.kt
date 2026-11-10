@@ -15,7 +15,9 @@ data class SherpaModel(
     /** Base language codes this model can recognize (e.g. "zh", "en"). */
     val languages: Set<String>,
     val type: SherpaModelType,
-    /** Value for OnlineModelConfig.modelType ("" = let the runtime detect). */
+    /** Value for OnlineModelConfig.modelType. Always "" (auto-detect from the
+     *  model's own metadata): hardcoding "zipformer" makes the native runtime
+     *  abort on zipformer2 models — that was the Start force-close bug. */
     val modelType: String,
     val hfRepo: String,
     val files: List<SherpaFileSpec>,
@@ -38,7 +40,7 @@ object SherpaModelCatalog {
         displayName = "Chinese + English (bilingual)",
         languages = setOf("zh", "en"),
         type = SherpaModelType.TRANSDUCER,
-        modelType = "zipformer",
+        modelType = "",
         hfRepo = "csukuangfj/sherpa-onnx-streaming-zipformer-bilingual-zh-en-2023-02-20",
         files = listOf(
             SherpaFileSpec("encoder-epoch-99-avg-1.int8.onnx", 181_895_032),
@@ -53,7 +55,7 @@ object SherpaModelCatalog {
         displayName = "Chinese (2025, Chinese only)",
         languages = setOf("zh"),
         type = SherpaModelType.TRANSDUCER,
-        modelType = "zipformer",
+        modelType = "",
         hfRepo = "csukuangfj/sherpa-onnx-streaming-zipformer-zh-int8-2025-06-30",
         files = listOf(
             SherpaFileSpec("encoder.int8.onnx", 161_141_793),
@@ -68,7 +70,7 @@ object SherpaModelCatalog {
         displayName = "Korean",
         languages = setOf("ko"),
         type = SherpaModelType.TRANSDUCER,
-        modelType = "zipformer",
+        modelType = "",
         hfRepo = "k2-fsa/sherpa-onnx-streaming-zipformer-korean-2024-06-16",
         files = listOf(
             SherpaFileSpec("encoder-epoch-99-avg-1.int8.onnx", 126_968_852),
@@ -83,7 +85,7 @@ object SherpaModelCatalog {
         displayName = "French",
         languages = setOf("fr"),
         type = SherpaModelType.TRANSDUCER,
-        modelType = "zipformer",
+        modelType = "",
         hfRepo = "shaojieli/sherpa-onnx-streaming-zipformer-fr-2023-04-14",
         files = listOf(
             SherpaFileSpec("encoder-epoch-29-avg-9-with-averaged-model.int8.onnx", 126_655_903),
@@ -98,7 +100,7 @@ object SherpaModelCatalog {
         displayName = "Multilingual (ja · ar · id · th · vi · ru)",
         languages = setOf("ja", "ar", "id", "th", "vi", "ru", "en", "zh"),
         type = SherpaModelType.TRANSDUCER,
-        modelType = "zipformer",
+        modelType = "",
         hfRepo = "csukuangfj/sherpa-onnx-streaming-zipformer-ar_en_id_ja_ru_th_vi_zh-2025-02-10",
         files = listOf(
             SherpaFileSpec("encoder-epoch-75-avg-11-chunk-16-left-128.int8.onnx", 296_583_597),

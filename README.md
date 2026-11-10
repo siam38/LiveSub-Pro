@@ -1,6 +1,8 @@
 # LiveSub Pro
 
-**Live captions and translation for anything playing on your phone — by SiAM**
+**Live captions and translation for anything playing on your phone.**
+
+Modified and redesigned by **SiAM**, based on LiveCaptionN by Charles Hartmann.
 
 [![Latest release](https://img.shields.io/github/v/release/siam38/LiveSub-Pro?color=2e4bd7)](https://github.com/siam38/LiveSub-Pro/releases/latest)
 [![License](https://img.shields.io/github/license/siam38/LiveSub-Pro?color=6366f1)](LICENSE)
@@ -65,7 +67,7 @@ Locally: `./gradlew :app:assembleGithubDebug` (JDK 17, Android SDK 36).
 
 ## Credits
 
-LiveSub Pro is developed by **SiAM** — redesign, the Sherpa engine and model downloads, the subtitle dock, and the removal of the original paywall/ads.
+LiveSub Pro is modified and redesigned by **SiAM** — the Sherpa engine and in-app model downloads, the new subtitle dock, the redesigned interface and setup flow, and the removal of the original paywall/ads.
 
 Based on [LiveCaptionN / LiveTranscribe-Android](https://github.com/chartmann1590/LiveTranscribe-Android) by **Charles Hartmann (chartmann1590)**. Thank you for open-sourcing the original app.
 
