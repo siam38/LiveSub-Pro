@@ -9,16 +9,17 @@ import org.junit.Test
 class PremiumStateTest {
 
     @Test
-    fun defaults_haveNoEntitlements() {
-        assertFalse(PremiumState().hasAdFree)
-        assertFalse(PremiumState().hasPro)
+    fun defaults_areFullyUnlocked() {
+        // LiveSub Pro build: no paywall, everything is unlocked by default.
+        assertTrue(PremiumState().hasAdFree)
+        assertTrue(PremiumState().hasPro)
     }
 
     @Test
     fun hasAdFree_trueWhenEntitlementPresent() {
         val state = PremiumState(entitlements = setOf(Entitlement.AD_FREE))
         assertTrue(state.hasAdFree)
-        assertFalse(state.hasPro)
+        assertTrue(state.hasPro)
     }
 
     @Test

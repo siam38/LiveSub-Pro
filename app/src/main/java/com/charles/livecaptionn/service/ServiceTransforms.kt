@@ -86,5 +86,6 @@ internal fun overlayTranscriptText(runtime: CaptionRuntimeState): String {
         line.originalText == runtime.originalText -> runtime.translatedText
         else -> ""
     }
-    return com.charles.livecaptionn.overlay.SubtitleCue.rolling(translated)
+    // Show the current cue in full — never roll or cut it.
+    return translated.trim().replace(Regex("\\s+"), " ")
 }

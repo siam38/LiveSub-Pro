@@ -8,7 +8,6 @@ import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.text.TextUtils
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -153,8 +152,7 @@ class OverlayController(
             setTextColor(Color.argb(185, 255, 255, 255))
             gravity = Gravity.CENTER
             setLineSpacing(dp(2).toFloat(), 1.05f)
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
+            maxLines = 3
             visibility = View.GONE
             setShadowLayer(3f, 0f, 1f, Color.BLACK)
             layoutParams = LinearLayout.LayoutParams(
@@ -169,8 +167,7 @@ class OverlayController(
             gravity = Gravity.CENTER
             typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
             setLineSpacing(dp(3).toFloat(), 1.12f)
-            maxLines = 2
-            ellipsize = TextUtils.TruncateAt.END
+            maxLines = 4
             setShadowLayer(4f, 0f, 1.5f, Color.BLACK)
             text = "…"
             layoutParams = LinearLayout.LayoutParams(
@@ -268,7 +265,7 @@ class OverlayController(
 
         translatedText?.typeface = Typeface.create(font.typeface, Typeface.BOLD)
         translatedText?.textSize = display.translatedTextSizeSp
-        translatedText?.maxLines = if (ui.minimized) 1 else 2
+        translatedText?.maxLines = if (ui.minimized) 2 else 4
         if (translatedText?.text?.toString() != display.translatedText) translatedText?.text = display.translatedText
         translatedText?.visibility = View.VISIBLE
     }

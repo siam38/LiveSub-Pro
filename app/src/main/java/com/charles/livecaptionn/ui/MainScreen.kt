@@ -187,7 +187,7 @@ fun MainScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Translate, contentDescription = null, modifier = Modifier.size(28.dp))
                         Spacer(Modifier.width(10.dp))
-                        Text(t["Live CaptionN"], fontWeight = FontWeight.Bold)
+                        Text(t["LiveSub Pro"], fontWeight = FontWeight.Bold)
                     }
                 },
                 actions = {

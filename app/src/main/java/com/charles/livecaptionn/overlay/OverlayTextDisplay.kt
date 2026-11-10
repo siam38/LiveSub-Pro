@@ -8,7 +8,7 @@ data class OverlayTextDisplay(
     val translatedTextSizeSp: Float
 )
 
-// One cue at a time. Translated line is the hero (full size, max 2 lines);
+// One cue at a time, shown in full. Translated line is the hero;
 // the original, when bilingual mode is on, sits smaller above it.
 fun computeOverlayTextDisplay(ui: OverlayUiState): OverlayTextDisplay {
     val isIdentical = ui.originalText.isNotBlank() &&
@@ -17,7 +17,7 @@ fun computeOverlayTextDisplay(ui: OverlayUiState): OverlayTextDisplay {
     val scaledOriginalSize = (ui.textSizeSp * 0.78f).coerceIn(12f, 20f)
     return OverlayTextDisplay(
         showOriginal = showOriginal,
-        originalText = SubtitleCue.rolling(ui.originalText, maxChars = 72),
+        originalText = ui.originalText.trim().replace(Regex("\\s+"), " "),
         originalTextSizeSp = scaledOriginalSize,
         translatedText = ui.transcriptText.ifBlank { "…" },
         translatedTextSizeSp = ui.textSizeSp

@@ -58,7 +58,7 @@ class UiStrings(private val map: Map<String, String> = emptyMap()) {
 object UiStringCatalog {
 
     /** Short display name of the app itself, used directly as a catalog key. */
-    const val appName = "Live CaptionN"
+    const val appName = "LiveSub Pro"
 
     /** Every unique English string / template the UI may pass through `t[...]`. */
     val ALL: List<String> = listOf(

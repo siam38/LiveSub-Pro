@@ -12,9 +12,9 @@ data class PremiumState(
     val lastVerifiedAtMillis: Long = 0L,
     val gracePeriodExpiresAtMillis: Long? = null
 ) {
-    /** Pro includes the Ad-Free benefit even when the store reports one product. */
-    val hasAdFree: Boolean get() = hasPro || Entitlement.AD_FREE in entitlements
-    val hasPro: Boolean get() = Entitlement.PRO in entitlements
+    // LiveSub Pro build: every feature is unlocked, no paywall.
+    val hasAdFree: Boolean get() = true
+    val hasPro: Boolean get() = true
 
     /** True while cached entitlements can still be trusted without a successful revalidation. */
     fun isWithinGracePeriod(nowMillis: Long): Boolean {
