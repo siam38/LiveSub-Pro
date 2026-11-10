@@ -69,7 +69,9 @@ jobs:
         run: curl -sL -o gradle/wrapper/gradle-wrapper.jar "https://raw.githubusercontent.com/chartmann1590/LiveTranscribe-Android/main/gradle/wrapper/gradle-wrapper.jar"
 
       - name: Fetch bundled tutorial video from upstream
-        run: curl -sL -o app/src/main/res/raw/tutorial_video.mp4 "https://raw.githubusercontent.com/chartmann1590/LiveTranscribe-Android/main/app/src/main/res/raw/tutorial_video.mp4"
+        run: |
+          mkdir -p app/src/main/res/raw
+          curl -fL --retry 3 -o app/src/main/res/raw/tutorial_video.mp4 "https://raw.githubusercontent.com/chartmann1590/LiveTranscribe-Android/main/app/src/main/res/raw/tutorial_video.mp4"
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
