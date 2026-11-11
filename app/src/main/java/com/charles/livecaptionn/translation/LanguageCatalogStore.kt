@@ -26,16 +26,11 @@ data class LibreCatalogState(
     val error: String? = null,
     val lastBaseUrl: String = ""
 ) {
-    /** What the UI should offer when picking source/target languages. */
+
     fun effective(): List<Language> =
         if (languages.isNotEmpty()) languages else Language.FALLBACK
 }
 
-/**
- * Caches the `/languages` response from the configured LibreTranslate server
- * and re-fetches whenever the user changes the server URL. Everything lives
- * in a StateFlow so the Compose UI can react.
- */
 class LanguageCatalogStore(
     private val settingsRepository: SettingsRepository,
     private val scope: CoroutineScope

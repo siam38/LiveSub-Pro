@@ -20,11 +20,10 @@ class AudioPreprocessorTest {
     @Test
     fun processPcm16_removesConstantDcOffset() {
         val processor = AudioPreprocessor(enableDcBlocker = true, enableAgc = false)
-        // Constant DC offset of +8000 (~0.244f)
+
         val dcSamples = ShortArray(1600) { 8000 }
         val output = processor.processPcm16(dcSamples, dcSamples.size)
 
-        // After ~100ms (1600 samples), DC blocker should attenuate the constant offset by >95%
         val tailAvg = output.takeLast(200).map { abs(it) }.average()
         assertTrue("Expected tail DC average < 0.02, got $tailAvg", tailAvg < 0.02)
     }
@@ -32,12 +31,11 @@ class AudioPreprocessorTest {
     @Test
     fun processPcm16_boostsQuietSystemAudioSignal() {
         val processor = AudioPreprocessor(enableDcBlocker = true, enableAgc = true)
-        // Simulate a quiet 440 Hz sine wave with peak amplitude 600 (~0.018f)
+
         val quietWave = ShortArray(1600) { i ->
             (600.0 * sin(2.0 * Math.PI * 440.0 * i / 16000.0)).toInt().toShort()
         }
 
-        // Feed two frames so AGC envelope ramps up
         processor.processPcm16(quietWave, quietWave.size)
         val out = processor.processPcm16(quietWave, quietWave.size)
 

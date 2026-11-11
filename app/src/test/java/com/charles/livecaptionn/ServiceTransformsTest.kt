@@ -15,8 +15,6 @@ import org.junit.Test
 
 class ServiceTransformsTest {
 
-    // ── recordTranscriptResult ──
-
     @Test
     fun recordTranscriptResult_blankText_returnsInput() {
         val lines = listOf(CaptionRuntimeLine(id = 1L, originalText = "hello"))
@@ -40,9 +38,7 @@ class ServiceTransformsTest {
 
     @Test
     fun recordTranscriptResult_translatedButNotFinal_stillReplaces() {
-        // Regression test for GitHub issue #1: a line that already carries a
-        // translation but is not final yet must still be replaced in place by
-        // the next partial — not appended as a duplicate line.
+
         val lines = listOf(
             CaptionRuntimeLine(id = 1L, originalText = "hello", translatedText = "xin chao", isFinal = false)
         )
@@ -93,8 +89,6 @@ class ServiceTransformsTest {
         assertEquals("line 32", result.last().originalText)
     }
 
-    // ── updateTranscriptTranslation ──
-
     @Test
     fun updateTranscriptTranslation_matchesById() {
         val lines = listOf(
@@ -117,7 +111,7 @@ class ServiceTransformsTest {
     fun updateTranscriptTranslation_staleIdAfterTextEvolved_isNoOp() {
         val original = listOf(CaptionRuntimeLine(id = 1L, originalText = "hel"))
         val evolved = recordTranscriptResult(original, "hello world", isFinal = false, newLineId = 2L)
-        // Translation for the stale id (1L) arrives after the line evolved to id 2L.
+
         val result = updateTranscriptTranslation(evolved, lineId = 1L, translatedText = "stale")
         assertEquals(evolved, result)
     }
@@ -130,11 +124,9 @@ class ServiceTransformsTest {
             CaptionRuntimeLine(id = 3L, originalText = "hello", isFinal = true)
         )
         val result = updateTranscriptTranslation(lines, lineId = 3L, translatedText = "translated")
-        assertEquals("", result[0].translatedText) // first "hello" unchanged
-        assertEquals("translated", result[2].translatedText) // matched by id, not text
+        assertEquals("", result[0].translatedText)
+        assertEquals("translated", result[2].translatedText)
     }
-
-    // ── overlayTranscriptText ──
 
     @Test
     fun overlayTranscriptText_empty() {
@@ -185,9 +177,7 @@ class ServiceTransformsTest {
 
     @Test
     fun overlayTranscriptText_holdsPreviousCueWhileNextSentenceIsPartial() {
-        // Real-subtitle behaviour: while the next sentence is still being
-        // spoken, the completed previous cue stays on screen — it must not
-        // be replaced by (untranslated) partial fragments.
+
         val state = CaptionRuntimeState(
             originalText = "next partial frag",
             translatedText = "xin chao",
@@ -236,8 +226,6 @@ class ServiceTransformsTest {
         assertEquals("", overlayTranscriptText(state))
     }
 
-    // ── overlayOriginalText ──
-
     @Test
     fun overlayOriginalText_returnsOriginalPairedWithCue() {
         val state = CaptionRuntimeState(
@@ -260,8 +248,6 @@ class ServiceTransformsTest {
         )
         assertEquals("", overlayOriginalText(state))
     }
-
-    // ── Live preview helpers (zero-blackout first utterance) ──
 
     @Test
     fun overlayDisplayOriginalText_surfacesLivePartialBeforeFirstCue() {

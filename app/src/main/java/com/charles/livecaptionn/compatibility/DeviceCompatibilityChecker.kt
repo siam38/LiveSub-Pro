@@ -30,18 +30,13 @@ data class DeviceSpecs(
 }
 
 object DeviceCompatibilityChecker {
-    // Thresholds:
-    // Minimum RAM required for Vosk + ML Kit combined: 2.5 GB (2560 MB)
-    // Recommended RAM for smooth streaming + large models: 4 GB (3840 MB)
+
     const val MIN_RAM_MB = 2560L
     const val REC_RAM_MB = 3840L
 
-    // Minimum free storage for unpacking Vosk acoustic model + ML Kit pair: 350 MB
-    // Recommended storage: 1.5 GB (1500 MB)
     const val MIN_STORAGE_MB = 350L
     const val REC_STORAGE_MB = 1500L
 
-    // CPU Cores: 4 minimum for background decoding + Compose UI thread
     const val MIN_CPU_CORES = 4
     const val REC_CPU_CORES = 6
 

@@ -8,7 +8,7 @@ data class OverlayUiState(
     val transcriptText: String = "",
     val livePartialText: String = "",
     val status: RecognitionStatus = RecognitionStatus.IDLE,
-    /** Shown under status when STT/network fails (system-audio path). */
+
     val statusDetail: String? = null,
     val textSizeSp: Float = 20f,
     val opacity: Float = 0.65f,

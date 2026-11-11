@@ -49,7 +49,7 @@ class UiStringsTest {
 
     @Test
     fun format_usesEnglishTemplateWhenTranslationDroppedPlaceholder() {
-        // Machine translation stripped "%s" — must not crash and must keep arg.
+
         val t = UiStrings(mapOf("Example: %s" to "Ví dụ:"))
         assertEquals("Example: http://x", t.format("Example: %s", "http://x"))
     }

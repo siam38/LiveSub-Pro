@@ -43,8 +43,6 @@ class MainActivity : ComponentActivity() {
 
     private var showHistory by mutableStateOf(false)
 
-    // Audio source snapshot taken when the projection consent is launched,
-    // so the service starts with exactly the source the user tapped Start on.
     private var pendingProjectionSource: AudioSource? = null
 
     private val audioPermissionLauncher = registerForActivityResult(
@@ -91,8 +89,7 @@ class MainActivity : ComponentActivity() {
                             )
                         } else {
                             Column(modifier = Modifier.fillMaxSize().navigationBarsPadding()) {
-                                // Main content fills remaining space above the
-                                // persistent banner ad at the bottom.
+
                                 if (showHistory) {
                                     HistoryScreen(
                                         historyStore = app.container.transcriptHistory,
@@ -165,10 +162,7 @@ class MainActivity : ComponentActivity() {
     private fun startCaptionService(audioSource: AudioSource) {
         val intent = Intent(this, CaptionForegroundService::class.java).apply {
             action = CaptionForegroundService.ACTION_START
-            // Passed eagerly so the service can call startForeground() with the
-            // correct service type synchronously inside Android's 5-second
-            // post-startForegroundService deadline (DataStore reads were racing
-            // it on slow devices, crashing the app).
+
             putExtra(CaptionForegroundService.EXTRA_AUDIO_SOURCE, audioSource.name)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

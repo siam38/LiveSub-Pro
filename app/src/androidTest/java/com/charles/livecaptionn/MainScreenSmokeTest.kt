@@ -12,12 +12,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Smoke test verifying the main screen renders key UI elements.
- *
- * Requires a device/emulator because Compose UI tests run on-device
- * (Robolectric cannot render Compose reliably).
- */
 @RunWith(AndroidJUnit4::class)
 class MainScreenSmokeTest {
 

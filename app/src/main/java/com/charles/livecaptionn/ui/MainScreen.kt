@@ -467,8 +467,6 @@ private fun SectionLabel(text: String) {
     )
 }
 
-// ── Control Card ──
-
 @Composable
 private fun CaptionControlCard(
     ui: MainUiState,
@@ -534,7 +532,6 @@ private fun CaptionControlCard(
                     )
                 }
 
-                // Quick engine/source pill
                 Surface(
                     shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
@@ -563,7 +560,6 @@ private fun CaptionControlCard(
                 }
             }
 
-            // Live Subtitle Monitor when running
             if (isRunning) {
                 Spacer(Modifier.height(12.dp))
                 Surface(
@@ -726,8 +722,6 @@ private fun BlockerRow(text: String, actionLabel: String, onAction: () -> Unit) 
     }
 }
 
-// ── Permissions ──
-
 @Composable
 private fun PermissionsCard(
     ui: MainUiState,
@@ -804,8 +798,6 @@ private fun PermissionRow(label: String, granted: Boolean, onGrant: () -> Unit) 
         }
     }
 }
-
-// ── Audio Source ──
 
 @Composable
 private fun AudioSourceCard(
@@ -1003,8 +995,6 @@ private fun ChoiceChip(
         )
     }
 }
-
-// ── Language Card ──
 
 @Composable
 private fun LanguageCard(
@@ -1274,8 +1264,6 @@ internal fun LanguagePickerDialog(
     )
 }
 
-// ── Sherpa model management (Card + Sheet) ──
-
 @Composable
 private fun SherpaModelLibraryCard(
     states: Map<String, SherpaModelState>,
@@ -1533,8 +1521,6 @@ private fun formatModelSize(sizeMb: Int): String {
     return "$sizeMb MB"
 }
 
-// ── Live Overlay Preview + Settings ──
-
 @Composable
 private fun LiveOverlayPreviewCard(ui: MainUiState) {
     val t = LocalUiStrings.current
@@ -1707,8 +1693,6 @@ private fun OverlaySettingsCard(
     }
 }
 
-// ── Server Card ──
-
 @Composable
 private fun ServerCard(
     ui: MainUiState,
@@ -1825,8 +1809,6 @@ private fun ServerCard(
     }
 }
 
-// ── Update Available Banner ──
-
 @Composable
 private fun UpdateAvailableBanner(
     info: UpdateInfo,
@@ -1917,8 +1899,6 @@ private fun UpdateAvailableBanner(
         }
     }
 }
-
-// ── Interface Language ──
 
 @Composable
 private fun UiLanguageCard(
@@ -2017,8 +1997,6 @@ private fun UiLanguageCard(
         )
     }
 }
-
-// ── Compatibility & Hardware Requirements ──
 
 @Composable
 private fun UnsupportedDeviceBanner(

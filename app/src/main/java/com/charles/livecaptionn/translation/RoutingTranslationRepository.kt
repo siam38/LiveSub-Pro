@@ -4,13 +4,6 @@ import com.charles.livecaptionn.data.SettingsRepository
 import com.charles.livecaptionn.settings.TranslationBackend
 import kotlinx.coroutines.flow.first
 
-/**
- * Dispatches each translation call to the backend selected in user settings.
- *
- * Caches the active backend so we don't read settings flow on every call.
- * Settings changes are rare relative to translation call frequency, so a
- * lazy fresh-on-mismatch strategy avoids coroutine overhead per call.
- */
 class RoutingTranslationRepository(
     private val settingsRepository: SettingsRepository,
     private val mlKit: TranslationRepository,

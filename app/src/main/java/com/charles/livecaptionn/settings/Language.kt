@@ -1,10 +1,5 @@
 package com.charles.livecaptionn.settings
 
-/**
- * A selectable source/target language identified by a two-letter (or BCP-47)
- * code plus a human-readable display name. Used for both LibreTranslate-
- * reported languages and locally installed Vosk models.
- */
 data class Language(
     val code: String,
     val name: String
@@ -13,7 +8,6 @@ data class Language(
         const val AUTO_CODE = "auto"
         val AUTO = Language(AUTO_CODE, "Auto-detect")
 
-        /** Fallback list used when LibreTranslate is unreachable at startup. */
         val FALLBACK: List<Language> = listOf(
             Language("en", "English"),
             Language("vi", "Vietnamese"),

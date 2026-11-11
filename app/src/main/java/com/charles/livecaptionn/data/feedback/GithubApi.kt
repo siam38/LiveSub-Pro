@@ -7,10 +7,6 @@ import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
 
-/**
- * Talks to the cloudflare-worker-feedback/ relay, not api.github.com directly. See
- * GithubClient.kt and cloudflare-worker-feedback/src/index.ts.
- */
 interface GithubApi {
 
     @POST("issue")

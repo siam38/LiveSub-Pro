@@ -9,8 +9,6 @@ data class OverlayTextDisplay(
     val livePartialText: String = ""
 )
 
-// One cue at a time, shown in full. Translated line is the hero;
-// the original, when bilingual mode is on, sits smaller above it.
 fun computeOverlayTextDisplay(ui: OverlayUiState): OverlayTextDisplay {
     val isIdentical = ui.originalText.isNotBlank() &&
         ui.originalText.trim().equals(ui.transcriptText.trim(), ignoreCase = true)

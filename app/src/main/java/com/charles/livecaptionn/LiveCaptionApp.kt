@@ -17,13 +17,11 @@ class LiveCaptionApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // WorkManager.getInstance()/enqueue touch WorkManager's Room database; keep that
-        // off the main-thread startup path.
+
         container.appScope.launch { UpdateCheckWorker.schedule(this@LiveCaptionApp) }
 
         FirebaseApp.initializeApp(this)
-        // Don't pollute the Crashlytics dashboard or skew Analytics with developer
-        // builds. Performance Monitoring follows the same toggle.
+
         val collectInProd = !BuildConfig.DEBUG
         Firebase.crashlytics.isCrashlyticsCollectionEnabled = collectInProd
         Firebase.analytics.setAnalyticsCollectionEnabled(collectInProd)

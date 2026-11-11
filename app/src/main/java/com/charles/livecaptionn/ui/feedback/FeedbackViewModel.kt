@@ -30,7 +30,6 @@ data class FeedbackUiState(
     val configError: String? = null,
     val bugReports: List<BugReport> = emptyList(),
 
-    // Create report dialog
     val showReportDialog: Boolean = false,
     val reportTitle: String = "",
     val reportDescription: String = "",
@@ -42,7 +41,6 @@ data class FeedbackUiState(
     val submitError: String? = null,
     val submitSuccess: Boolean = false,
 
-    // Issue details dialog
     val selectedReport: BugReport? = null,
     val showIssueDetails: Boolean = false,
     val issueDetail: GithubIssue? = null,
@@ -50,7 +48,6 @@ data class FeedbackUiState(
     val isLoadingIssue: Boolean = false,
     val issueError: String? = null,
 
-    // Comment reply
     val replyText: String = "",
     val replyAttachmentUri: Uri? = null,
     val isPostingReply: Boolean = false,
@@ -164,7 +161,7 @@ class FeedbackViewModel(
                             uploadedUrl = uploadResponse.body()?.content?.downloadUrl
                         }
                     } catch (_: Exception) {
-                        // If upload fails, continue without attachment
+
                     }
                 }
 
@@ -252,7 +249,6 @@ class FeedbackViewModel(
                     emptyList()
                 }
 
-                // Update local status if changed
                 if (issue.state != report.status) {
                     repo.saveBugReport(report.copy(status = issue.state))
                 }
@@ -345,7 +341,7 @@ class FeedbackViewModel(
                 )
 
                 if (response.isSuccessful) {
-                    // Refresh comments
+
                     val commentsResponse = api.getComments(report.number)
                     val comments = if (commentsResponse.isSuccessful) {
                         commentsResponse.body() ?: emptyList()

@@ -6,18 +6,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.math.abs
 
-/**
- * Tests the pure companion helpers on [SystemAudioEngine].
- *
- * We access them through `SystemAudioEngine.Companion` via reflection-tested
- * patterns. Since they are private, we test the observable behavior through
- * public APIs or by extracting them to internal visibility if needed.
- *
- * Note: averageAbsAmplitude, isLikelyHallucinatedTranscript, and
- * isRepeatedPattern are private companion methods. To test them directly
- * we would need to make them internal. For now these tests validate the
- * logic through the engine's actual behavior in integration.
- */
 class SystemAudioEngineFiltersTest {
 
     @Test
@@ -29,7 +17,7 @@ class SystemAudioEngineFiltersTest {
 
     @Test
     fun averageAmplitude_maxSignal_returnsHighValue() {
-        // 16-bit samples: 0x7F, 0x7F = 32639
+
         val loud = ByteArray(3200) { 0x7F }
         val amp = averageAbsAmplitude(loud)
         assertTrue(amp > 32000)
@@ -66,8 +54,6 @@ class SystemAudioEngineFiltersTest {
     }
 }
 
-// Replicate the private companion logic for direct unit testing.
-// These mirror SystemAudioEngine's companion implementation.
 private fun averageAbsAmplitude(pcmData: ByteArray): Int {
     var sum = 0L
     var samples = 0
@@ -104,7 +90,6 @@ private fun isRepeatedPattern(value: String): Boolean {
     return false
 }
 
-// We need assertFalse too
 private fun assertFalse(condition: Boolean) {
     org.junit.Assert.assertFalse(condition)
 }

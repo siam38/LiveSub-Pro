@@ -92,11 +92,10 @@ class OverlayTextDisplayTest {
 
     @Test
     fun computeOverlayTextDisplay_textSizeScaling_clampsProperly() {
-        // High text size clamped at 20sp
+
         val largeUi = OverlayUiState(textSizeSp = 36f)
         assertEquals(20f, computeOverlayTextDisplay(largeUi).originalTextSizeSp, 0.01f)
 
-        // Low text size floored at 12sp
         val smallUi = OverlayUiState(textSizeSp = 10f)
         assertEquals(12f, computeOverlayTextDisplay(smallUi).originalTextSizeSp, 0.01f)
     }

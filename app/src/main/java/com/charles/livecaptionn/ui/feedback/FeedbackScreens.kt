@@ -253,7 +253,7 @@ fun ReportProblemDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Warning box
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

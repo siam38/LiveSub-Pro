@@ -9,14 +9,6 @@ import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
 import java.util.concurrent.TimeUnit
 
-/**
- * Talks to the cloudflare-worker-feedback/ relay, not api.github.com directly — the
- * Worker holds the GitHub token as a server-side secret and hardcodes this app's own
- * repo, so no owner/repo/credential ever needs to travel through this app. Previously
- * embedded BuildConfig.GITHUB_API_TOKEN client-side as a Bearer header, which shipped a
- * real repo-write PAT in every release build (extractable from the APK). See
- * cloudflare-worker-feedback/src/index.ts.
- */
 object GithubClient {
 
     private val moshi: Moshi = Moshi.Builder()

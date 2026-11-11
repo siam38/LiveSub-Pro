@@ -3,7 +3,6 @@ package com.charles.livecaptionn.overlay
 import android.graphics.Color
 import android.graphics.Typeface
 
-/** [backgroundRgb]/[textRgb] are opaque RGB ints; alpha is applied separately from overlay opacity. */
 data class OverlayTheme(
     val id: String,
     val label: String,

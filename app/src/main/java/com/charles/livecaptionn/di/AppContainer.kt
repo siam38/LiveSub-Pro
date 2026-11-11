@@ -26,7 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 
 class AppContainer(context: Context) {
-    /** Long-lived scope for container-owned background work (catalog fetches etc.). */
+
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val settingsRepository: SettingsRepository = SettingsDataStore(context.applicationContext)
@@ -47,8 +47,7 @@ class AppContainer(context: Context) {
     val languageCatalogStore: LanguageCatalogStore = LanguageCatalogStore(settingsRepository, appScope)
     val updateChecker: UpdateChecker = UpdateChecker()
     val bugReportRepo: BugReportRepo = BugReportRepo(context.applicationContext)
-    // Interface language. Prefers on-device ML Kit; falls back to the
-    // configured LibreTranslate server when the model download is gated.
+
     val uiLocalization: UiLocalizationRepository = UiLocalizationRepository(
         context = context.applicationContext,
         settingsRepository = settingsRepository,

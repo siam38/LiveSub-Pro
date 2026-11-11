@@ -11,16 +11,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 
-/**
- * Downloads every ML Kit translation model the app offers and translates a
- * sentence with each one, so a language the picker shows can never be silently
- * broken. Every pair the app offers goes through English models (ML Kit pivots
- * X -> en -> Y), so checking en -> X for every X covers each model a pair needs.
- *
- * Needs a device with network; downloads roughly 30 MB per language.
- * `./gradlew connectedPlaystoreDebugAndroidTest
- *   -Pandroid.testInstrumentationRunnerArguments.class=com.charles.livecaptionn.MlKitAllLanguagesTest`
- */
 @RunWith(AndroidJUnit4::class)
 class MlKitAllLanguagesTest {
 
@@ -31,7 +21,6 @@ class MlKitAllLanguagesTest {
         val failures = mutableListOf<String>()
         val offered = MlKitLanguages.LIST.map { it.code }.filter { it != "en" }
 
-        // The hardcoded list must match what the SDK actually supports.
         val sdk = TranslateLanguage.getAllLanguages().toSet()
         offered.filter { TranslateLanguage.fromLanguageTag(it) !in sdk }
             .forEach { failures += "$it: not supported by the ML Kit SDK" }

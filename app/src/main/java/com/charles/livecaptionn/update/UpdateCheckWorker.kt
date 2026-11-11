@@ -12,13 +12,6 @@ import com.charles.livecaptionn.BuildConfig
 import com.charles.livecaptionn.LiveCaptionApp
 import java.util.concurrent.TimeUnit
 
-/**
- * Periodic WorkManager job that asks the [UpdateChecker] whether a newer
- * release exists and, if so, surfaces a system notification via
- * [UpdateNotifier]. Designed to run roughly twice a day, only when the device
- * has network. Idempotent — [schedule] uses KEEP so re-enqueueing on every app
- * start is a no-op after the first run.
- */
 class UpdateCheckWorker(
     appContext: Context,
     params: WorkerParameters

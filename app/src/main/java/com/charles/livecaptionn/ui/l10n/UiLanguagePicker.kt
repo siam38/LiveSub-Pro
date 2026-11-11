@@ -34,11 +34,6 @@ import androidx.compose.ui.unit.dp
 import com.charles.livecaptionn.translation.MlKitLanguages
 import com.charles.livecaptionn.ui.l10n.UiLocalizationRepository.UiLocalizationStage
 
-/**
- * picker for the interface language (settings + onboarding share it).
- * Selecting a non-English language first asks for confirmation and shows the
- * on-device ML Kit accuracy disclaimer.
- */
 @Composable
 fun UiLanguagePickerDialog(
     currentCode: String,

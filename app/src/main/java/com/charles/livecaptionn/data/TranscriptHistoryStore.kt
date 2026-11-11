@@ -12,10 +12,6 @@ import java.io.FileOutputStream
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 
-/**
- * Persists transcript history as a JSON array in internal storage.
- * Thread-safe via Mutex; keeps the most recent [MAX_ENTRIES] entries.
- */
 class TranscriptHistoryStore private constructor(private val file: File) {
 
     constructor(context: Context) : this(File(context.filesDir, "transcript_history.json"))
@@ -48,7 +44,7 @@ class TranscriptHistoryStore private constructor(private val file: File) {
                     targetLanguage = obj.optString("targetLanguage", ""),
                     id = obj.optString("id", legacyId(obj))
                 )
-            }.reversed() // newest first
+            }.reversed()
         }
     }
 

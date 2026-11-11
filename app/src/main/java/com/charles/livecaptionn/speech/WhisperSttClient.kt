@@ -17,18 +17,10 @@ import java.util.concurrent.TimeUnit
 
 data class TranscribeOutcome(
     val text: String,
-    /** Non-null when the HTTP request failed or the response was unusable (not "no speech"). */
+
     val errorMessage: String? = null
 )
 
-/**
- * Sends WAV audio to a Whisper-compatible STT endpoint and returns transcribed text.
- *
- * Supports whisper-asr-webservice format:
- *   POST {baseUrl}  (e.g. http://host:9000/asr?output=json)
- *   multipart: audio_file = audio.wav
- *   response: {"text": "..."}
- */
 class WhisperSttClient {
 
     private val client = OkHttpClient.Builder()

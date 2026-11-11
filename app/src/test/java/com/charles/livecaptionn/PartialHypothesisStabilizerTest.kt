@@ -41,11 +41,9 @@ class PartialHypothesisStabilizerTest {
         val first = stabilizer.stabilizePartial("Good morning everyon")
         assertEquals("Good morning everyon", first)
 
-        // Frame jitter drops the last character momentarily
         val second = stabilizer.stabilizePartial("Good morning everyo")
         assertEquals("Good morning everyo", second)
 
-        // Next frame extends normally
         val third = stabilizer.stabilizePartial("Good morning everyone today")
         assertEquals("Good morning everyone today", third)
     }
@@ -58,10 +56,8 @@ class PartialHypothesisStabilizerTest {
             minDeltaCharsForNextPreview = 10
         )
 
-        // Short fragment: do not trigger
         assertFalse(stabilizer.shouldDispatchEarlyTranslation("Hello", nowMs = 1000L))
 
-        // First meaningful clause (>= 4 words / >= 14 chars): triggers
         assertTrue(
             stabilizer.shouldDispatchEarlyTranslation(
                 "Hello everyone welcome to",
@@ -69,7 +65,6 @@ class PartialHypothesisStabilizerTest {
             )
         )
 
-        // Too soon after previous preview (< 900ms): debounced
         assertFalse(
             stabilizer.shouldDispatchEarlyTranslation(
                 "Hello everyone welcome to the live stream today",
@@ -77,7 +72,6 @@ class PartialHypothesisStabilizerTest {
             )
         )
 
-        // After debounce interval and sufficient new characters: triggers again
         assertTrue(
             stabilizer.shouldDispatchEarlyTranslation(
                 "Hello everyone welcome to the live stream today",

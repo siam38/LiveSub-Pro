@@ -20,11 +20,6 @@ import kotlinx.coroutines.launch
 import java.io.ByteArrayOutputStream
 import kotlin.math.abs
 
-/**
- * Captures system/internal audio via MediaProjection + AudioPlaybackCapture,
- * buffers a short PCM window, encodes to WAV, sends to a Whisper-compatible
- * STT endpoint, and delivers recognized text via callback.
- */
 class SystemAudioEngine(
     private val context: Context,
     private val projection: MediaProjection,
@@ -34,7 +29,7 @@ class SystemAudioEngine(
     private val sttBackend: SttBackend,
     private val scope: CoroutineScope,
     private val onResult: (SpeechResult) -> Unit,
-    /** Null clears any STT error hint after a successful round-trip to the server. */
+
     private val onSttError: (String?) -> Unit = {}
 ) : SpeechEngine {
 
@@ -91,7 +86,7 @@ class SystemAudioEngine(
             stop()
             return
         }
-        // Android 14+ requires a registered callback before capture starts.
+
         try {
             projection.registerCallback(
                 object : MediaProjection.Callback() {
@@ -116,7 +111,7 @@ class SystemAudioEngine(
             SAMPLE_RATE,
             AudioFormat.CHANNEL_IN_MONO,
             AudioFormat.ENCODING_PCM_16BIT
-        ).coerceAtLeast(SAMPLE_RATE * 2) // at least 1 second buffer
+        ).coerceAtLeast(SAMPLE_RATE * 2)
 
         audioRecord = AudioRecord.Builder()
             .setAudioPlaybackCaptureConfig(config)
@@ -159,7 +154,7 @@ class SystemAudioEngine(
 
         captureJob = scope.launch(Dispatchers.Default) {
             val chunkSeconds = REMOTE_CHUNK_SECONDS
-            val chunkBytes = SAMPLE_RATE * 2 * chunkSeconds // 16-bit mono = 2 bytes/sample
+            val chunkBytes = SAMPLE_RATE * 2 * chunkSeconds
             val readBuffer = ByteArray(4096)
             var consecutiveSilentChunks = 0
 
@@ -173,7 +168,6 @@ class SystemAudioEngine(
                 val startTime = System.currentTimeMillis()
                 var readError: Int? = null
 
-                // Collect a short audio window before running STT.
                 while (pcmBuffer.size() < chunkBytes && isActive && running && !paused) {
                     val read = audioRecord?.read(readBuffer, 0, readBuffer.size) ?: -1
                     when {
@@ -195,7 +189,7 @@ class SystemAudioEngine(
                     continue
                 }
 
-                if (pcmBuffer.size() < SAMPLE_RATE) continue // skip tiny chunks
+                if (pcmBuffer.size() < SAMPLE_RATE) continue
 
                 val pcmData = pcmBuffer.toByteArray()
                 val averageAmplitude = averageAbsAmplitude(pcmData)
@@ -210,8 +204,7 @@ class SystemAudioEngine(
 
                 consecutiveSilentChunks = 0
                 statusMutable.value = RecognitionStatus.PROCESSING
-                // This engine only serves the remote Whisper backend now;
-                // on-device Sherpa streams through StreamingSttEngine instead.
+
                 val wavData = WavEncoder.encode(pcmData, SAMPLE_RATE)
                 val outcome = sttClient.transcribe(wavData, sttUrl, languageCode)
                 val err = outcome.errorMessage

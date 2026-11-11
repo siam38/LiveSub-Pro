@@ -1,11 +1,5 @@
 package com.charles.livecaptionn.settings
 
-/**
- * Best-effort mapping from a bare ISO-639-1 code (used throughout the app
- * to identify a language) to a full BCP-47 locale tag that the Android
- * [android.speech.SpeechRecognizer] expects. For codes we don't recognise,
- * we fall back to `<code>` which most recognisers still accept.
- */
 object LocaleMap {
     private val LOCALES = mapOf(
         "en" to "en-US",

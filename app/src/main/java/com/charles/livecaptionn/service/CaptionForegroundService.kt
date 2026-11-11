@@ -51,13 +51,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class CaptionForegroundService : Service() {
     private var serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    /** Survives session teardown long enough to persist the final flushed utterance & release native ONNX memory. */
+
     private val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private lateinit var app: LiveCaptionApp
 
     private val captionSessionActive = AtomicBoolean(false)
 
-    /** Bumps when the overlay view is attached so combine() re-runs. */
     private val overlayReady = MutableStateFlow(0)
 
     private var speechEngine: SpeechEngine? = null
@@ -326,14 +325,14 @@ class CaptionForegroundService : Service() {
             if (key == lastQueuedKey) return
             lastQueuedKey = key
             val request = TranslationRequest(text = text, lineId = lineId, isFinal = true, saveHistory = true)
-            // Use persistenceScope for finals so stopping the session still translates & saves the last sentence
+
             persistenceScope.launch { translateSnapshot(request) }
         } else {
             val shouldEarlyTranslate = clauseStabilizer.shouldDispatchEarlyTranslation(
                 stabilizedPartial = text,
                 nowMs = SystemClock.elapsedRealtime()
             )
-            // Also check if source == target so same-language captions stream live on every partial
+
             serviceScope.launch {
                 val s = app.container.settingsRepository.settingsFlow.first()
                 val isSameLanguage = s.sourceLanguageCode.trim().equals(s.targetLanguageCode.trim(), ignoreCase = true)
@@ -390,8 +389,7 @@ class CaptionForegroundService : Service() {
                         status = if (paused) RecognitionStatus.PAUSED else RecognitionStatus.LISTENING
                     )
                 } else {
-                    // Clause-level early preview translation: populates previewTranslatedText so
-                    // long first utterances never stay blank, while keeping completed cues steady.
+
                     state.copy(
                         translatedText = if (current) translatedWithGlossary else state.translatedText,
                         previewTranslatedText = if (current) translatedWithGlossary else state.previewTranslatedText,

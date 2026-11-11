@@ -77,9 +77,7 @@ class LibreTranslateRepository(
                 source = if (autoDetect || sourceCode.isBlank()) "auto" else sourceCode,
                 target = targetCode
             )
-            // Empty server response is treated as a failure so the
-            // service can preserve the last good translation instead of
-            // overwriting it with the raw source text.
+
             api().translate(req).translatedText.trim()
         } catch (t: Throwable) {
             Log.w("LibreTranslateRepo", "Translation failed.", t)

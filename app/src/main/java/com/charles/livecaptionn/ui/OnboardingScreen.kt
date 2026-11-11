@@ -58,11 +58,6 @@ import com.charles.livecaptionn.speech.SherpaModelCatalog
 import com.charles.livecaptionn.ui.l10n.LocalUiStrings
 import com.charles.livecaptionn.ui.l10n.UiLanguagePickerDialog
 
-/**
- * First-run setup, three steps: permissions, languages, speech model.
- * The app cannot be used until a speech model is on the phone, so the
- * model download is a real step here, not a settings afterthought.
- */
 @Composable
 fun OnboardingScreen(
     viewModel: MainViewModel,
@@ -76,7 +71,6 @@ fun OnboardingScreen(
     var selectedUiCode by remember { mutableStateOf(ui.uiLanguageCode.takeIf { it.isNotBlank() } ?: "en") }
     var showUiPicker by remember { mutableStateOf(false) }
 
-    // Permission state must refresh when the user returns from system Settings.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -132,7 +126,6 @@ fun OnboardingScreen(
 
         Spacer(Modifier.height(20.dp))
 
-        // Step indicator
         Text(
             text = when (step) {
                 0 -> t["Step 1 of 3 · Permissions"]
@@ -304,8 +297,7 @@ private fun SetupPermissionRow(
             }
         }
         if (!granted) {
-            // Fixed size so every permission row's button looks identical,
-            // whatever its label ("Grant" vs "Open settings").
+
             FilledTonalButton(
                 onClick = onAction,
                 shape = RoundedCornerShape(8.dp),

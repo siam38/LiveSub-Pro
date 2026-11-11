@@ -29,8 +29,6 @@ data class SherpaModelState(
     val error: String? = null
 )
 
-// Sherpa models are far too big to bundle in the APK, so each one downloads
-// in-app on demand — one shared store for the whole catalog.
 class SherpaModelStore(context: Context) {
 
     private val appContext = context.applicationContext
@@ -59,7 +57,6 @@ class SherpaModelStore(context: Context) {
         }
     }
 
-    /** First installed model that can serve [languageCode], best first. */
     fun installedModelFor(languageCode: String): SherpaModel? =
         SherpaModelCatalog.modelsFor(languageCode).firstOrNull { isInstalled(it) }
 

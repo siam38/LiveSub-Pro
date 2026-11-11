@@ -5,7 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The Pro gating rules per language, pinned so they cannot drift by accident. */
 class ProGatingTest {
 
     @Test
@@ -32,7 +31,7 @@ class ProGatingTest {
     @Test
     fun everyProTranslationLanguage_isAnMlKitLanguage() {
         for (lang in MlKitLanguages.LIST) {
-            // Either free or Pro; nothing in the picker can be neither.
+
             val free = lang.code.lowercase() in MlKitLanguages.FREE_TIER
             assertTrue("${lang.code}", free == !MlKitLanguages.requiresPro(lang.code))
         }

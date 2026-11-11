@@ -13,28 +13,25 @@ data class CaptionSettings(
     val overlayX: Int = 60,
     val overlayY: Int = 220,
     val overlayMinimized: Boolean = false,
-    // Default is System Audio: the app's main job is captioning videos and
-    // streams playing on the phone. Defaulting to MIC meant Start never
-    // asked for screen-share consent and silently recorded the microphone.
+
     val audioSource: AudioSource = AudioSource.SYSTEM,
     val sttBackend: SttBackend = SttBackend.LOCAL_SHERPA,
     val translationBackend: TranslationBackend = TranslationBackend.ML_KIT,
     val sttBaseUrl: String = DEFAULT_STT_URL,
     val overlayWidthDp: Int = DEFAULT_OVERLAY_WIDTH_DP,
     val overlayHeightDp: Int = DEFAULT_OVERLAY_HEIGHT_DP,
-    /** Pro perk. Defaults render identically to the app's original look. */
+
     val overlayThemeId: String = "default",
     val overlayFontId: String = "default",
-    /** Interface (UI) language, defaulting to English until the user opts in
-     *  to an on-device ML Kit translation. Not the caption source language. */
+
     val uiLanguageCode: String = "en",
-    /** True once the first-launch onboarding has been completed. */
+
     val onboardingComplete: Boolean = false,
-    /** Whether completed captions should be persisted to local history. */
+
     val saveHistory: Boolean = true,
-    /** Whether the user acknowledged/dismissed the borderline hardware warning. */
+
     val borderlineWarningDismissed: Boolean = false,
-    /** Optional simulated compatibility tier for manual testing (e.g. PASSED, BORDERLINE, UNSUPPORTED). */
+
     val simulatedCompatibilityTier: String? = null
 ) {
     companion object {

@@ -18,12 +18,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.charles.livecaptionn.ui.l10n.UiStrings
 import kotlinx.coroutines.flow.first
 
-/**
- * Posts a single heads-up notification when a new release is detected, with a
- * direct "Download" action that opens the APK URL (falling back to the release
- * page) in the user's browser. Remembers the last tag it notified about so
- * the same release doesn't ping the user on every periodic check.
- */
 class UpdateNotifier(
     private val context: Context,
     private val uiStringsProvider: () -> UiStrings = { UiStrings.EMPTY }

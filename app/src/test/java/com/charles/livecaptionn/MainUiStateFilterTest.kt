@@ -61,7 +61,7 @@ class MainUiStateFilterTest {
         assertTrue(sources.any { it.code == "en" })
         assertTrue(sources.any { it.code == "ko" })
         assertTrue(sources.any { it.code == "ja" })
-        // No streaming Sherpa model exists for these — must not be offered.
+
         assertTrue(sources.none { it.code == "de" })
         assertTrue(sources.none { it.code == "es" })
     }

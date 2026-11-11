@@ -15,8 +15,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// LiveSub Pro Studio Design System:
-// High-contrast cinema slate & electric indigo with emerald live-signal accents.
 private val LightColors = lightColorScheme(
     primary = Color(0xFF2546D0),
     onPrimary = Color(0xFFFFFFFF),
