@@ -184,7 +184,8 @@ fun OnboardingScreen(
                 downloading = ui.sherpaNeededModel?.let { ui.sherpaModels[it.id]?.downloading } == true,
                 progress = ui.sherpaNeededModel?.let { ui.sherpaModels[it.id]?.progress } ?: 0f,
                 error = ui.sherpaNeededModel?.let { ui.sherpaModels[it.id]?.error },
-                onDownload = { ui.sherpaNeededModel?.let { viewModel.downloadSherpaModel(it) } }
+                onDownload = { ui.sherpaNeededModel?.let { viewModel.downloadSherpaModel(it) } },
+                onCancel = { ui.sherpaNeededModel?.let { viewModel.cancelSherpaModelDownload(it) } }
             )
         }
 
@@ -415,7 +416,8 @@ private fun ModelStep(
     downloading: Boolean,
     progress: Float,
     error: String?,
-    onDownload: () -> Unit
+    onDownload: () -> Unit,
+    onCancel: () -> Unit = {}
 ) {
     val t = LocalUiStrings.current
     Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
@@ -439,11 +441,21 @@ private fun ModelStep(
                 }
                 downloading -> {
                     LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
-                    Text(
-                        text = t.format("Downloading %s… %d%%", modelName ?: "", (progress * 100).toInt()),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = t.format("Downloading %s… %d%%", modelName ?: "", (progress * 100).toInt()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onCancel) {
+                            Text(t["Cancel"])
+                        }
+                    }
                 }
                 else -> {
                     Button(

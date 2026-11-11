@@ -4,6 +4,8 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,22 +18,30 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SubtitlesOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -50,7 +60,6 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.charles.livecaptionn.data.TranscriptEntry
 import com.charles.livecaptionn.data.TranscriptExport
 import com.charles.livecaptionn.data.TranscriptHistoryStore
@@ -72,17 +81,28 @@ fun HistoryScreen(
     val t = LocalUiStrings.current
     var entries by remember { mutableStateOf<List<TranscriptEntry>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
+    var selectedPairFilter by remember { mutableStateOf<String?>(null) }
     var deleteTarget by remember { mutableStateOf<TranscriptEntry?>(null) }
+    var showClearAllConfirm by remember { mutableStateOf(false) }
+    var showExportMenu by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         entries = historyStore.getAll()
     }
 
-    val filteredEntries = remember(entries, searchQuery) {
-        if (searchQuery.isBlank()) entries
-        else entries.filter { entry ->
-            entry.originalText.contains(searchQuery, ignoreCase = true) ||
+    val languagePairs = remember(entries) {
+        entries.map { "${it.sourceLanguage.uppercase()} → ${it.targetLanguage.uppercase()}" }
+            .distinct()
+    }
+
+    val filteredEntries = remember(entries, searchQuery, selectedPairFilter) {
+        entries.filter { entry ->
+            val pairLabel = "${entry.sourceLanguage.uppercase()} → ${entry.targetLanguage.uppercase()}"
+            val matchesPair = selectedPairFilter == null || pairLabel == selectedPairFilter
+            val matchesSearch = searchQuery.isBlank() ||
+                entry.originalText.contains(searchQuery, ignoreCase = true) ||
                 entry.translatedText.contains(searchQuery, ignoreCase = true)
+            matchesPair && matchesSearch
         }
     }
 
@@ -102,7 +122,7 @@ fun HistoryScreen(
                     }
                     deleteTarget = null
                 }) {
-                    Text(t["Delete"])
+                    Text(t["Delete"], color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
@@ -113,33 +133,102 @@ fun HistoryScreen(
         )
     }
 
+    if (showClearAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearAllConfirm = false },
+            title = { Text(t["Clear"]) },
+            text = {
+                Text("Delete all ${entries.size} saved transcript entries from this device?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            historyStore.clear()
+                            entries = emptyList()
+                            selectedPairFilter = null
+                        }
+                        showClearAllConfirm = false
+                    }
+                ) {
+                    Text(t["Delete"], color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllConfirm = false }) {
+                    Text(t["Cancel"])
+                }
+            }
+        )
+    }
+
+    fun shareExport(payload: String, mimeType: String = "text/plain") {
+        val share = Intent(Intent.ACTION_SEND).apply {
+            type = mimeType
+            putExtra(Intent.EXTRA_TEXT, payload)
+        }
+        context.startActivity(Intent.createChooser(share, t["Share transcripts"]))
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
-                title = { Text(t["Transcript History"]) },
+                title = {
+                    Column {
+                        Text(
+                            text = t["Transcript History"],
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (entries.isNotEmpty()) {
+                            Text(
+                                text = "${filteredEntries.size} / ${entries.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = t["Back"])
                     }
                 },
                 actions = {
-                    if (entries.isNotEmpty()) {
-                        IconButton(onClick = {
-                            val share = Intent(Intent.ACTION_SEND).apply {
-                                type = "text/plain"
-                                putExtra(Intent.EXTRA_TEXT, TranscriptExport(entries).asText())
-                            }
-                            context.startActivity(Intent.createChooser(share, t["Share transcripts"]))
-                        }) {
-                            Icon(Icons.Filled.ContentCopy, contentDescription = t["Share transcripts"])
+                    if (filteredEntries.isNotEmpty()) {
+                        IconButton(onClick = { showExportMenu = true }) {
+                            Icon(Icons.Filled.IosShare, contentDescription = t["Share transcripts"])
                         }
-                        TextButton(onClick = {
-                            scope.launch {
-                                historyStore.clear()
-                                entries = emptyList()
-                            }
-                        }) {
+                        DropdownMenu(
+                            expanded = showExportMenu,
+                            onDismissRequest = { showExportMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Export Plain Text (.txt)") },
+                                onClick = {
+                                    showExportMenu = false
+                                    shareExport(TranscriptExport(filteredEntries).asText())
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export SubRip Subtitles (.srt)") },
+                                onClick = {
+                                    showExportMenu = false
+                                    shareExport(TranscriptExport(filteredEntries).asSrt())
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Export JSON (.json)") },
+                                onClick = {
+                                    showExportMenu = false
+                                    shareExport(TranscriptExport(filteredEntries).asJson(), "application/json")
+                                }
+                            )
+                        }
+                    }
+                    if (entries.isNotEmpty()) {
+                        TextButton(onClick = { showClearAllConfirm = true }) {
                             Icon(Icons.Filled.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(4.dp))
                             Text(t["Clear"])
@@ -147,8 +236,8 @@ fun HistoryScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
         }
@@ -175,27 +264,59 @@ fun HistoryScreen(
                         }
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(14.dp)
                 )
+
+                if (languagePairs.size > 1) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = selectedPairFilter == null,
+                            onClick = { selectedPairFilter = null },
+                            label = { Text("All (${entries.size})") }
+                        )
+                        languagePairs.forEach { pair ->
+                            FilterChip(
+                                selected = selectedPairFilter == pair,
+                                onClick = {
+                                    selectedPairFilter = if (selectedPairFilter == pair) null else pair
+                                },
+                                label = { Text(pair) }
+                            )
+                        }
+                    }
+                }
             }
 
             if (filteredEntries.isEmpty()) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(16.dp),
+                        .padding(24.dp),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    Icon(
+                        Icons.Filled.SubtitlesOff,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Spacer(Modifier.height(12.dp))
                     Text(
-                        if (searchQuery.isNotBlank()) t["No matching transcripts"]
+                        if (searchQuery.isNotBlank() || selectedPairFilter != null) t["No matching transcripts"]
                         else t["No transcripts yet"],
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        if (searchQuery.isNotBlank()) t["Try a different search term."]
+                        if (searchQuery.isNotBlank() || selectedPairFilter != null) t["Try a different search term."]
                         else t["Transcripts will appear here as you use captioning."],
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline
@@ -235,7 +356,9 @@ private fun TranscriptCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(Modifier.padding(14.dp)) {
             Row(
@@ -243,18 +366,29 @@ private fun TranscriptCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = timeStr,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer
+                    ) {
+                        Text(
+                            text = "${entry.sourceLanguage.uppercase()} \u2192 ${entry.targetLanguage.uppercase()}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
                     Text(
-                        text = "${entry.sourceLanguage.uppercase()} \u2192 ${entry.targetLanguage.uppercase()}",
+                        text = timeStr,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Medium
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
                         onClick = {
                             val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -286,23 +420,27 @@ private fun TranscriptCard(
                 }
             }
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
 
+            if (entry.originalText.isNotBlank() &&
+                !entry.originalText.trim().equals(entry.translatedText.trim(), ignoreCase = true)
+            ) {
+                Text(
+                    text = entry.originalText,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontStyle = FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+            }
             Text(
-                text = entry.originalText,
-                style = MaterialTheme.typography.bodySmall,
-                fontStyle = FontStyle.Italic,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = entry.translatedText,
+                text = entry.translatedText.ifBlank { entry.originalText },
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 4,
+                maxLines = 5,
                 overflow = TextOverflow.Ellipsis
             )
         }

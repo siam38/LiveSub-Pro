@@ -228,6 +228,10 @@ class MainViewModel(
         container.sherpaModelStore.download(model)
     }
 
+    fun cancelSherpaModelDownload(model: SherpaModel) {
+        container.sherpaModelStore.cancelDownload(model)
+    }
+
     fun deleteSherpaModel(model: SherpaModel) {
         container.sherpaModelStore.delete(model)
     }

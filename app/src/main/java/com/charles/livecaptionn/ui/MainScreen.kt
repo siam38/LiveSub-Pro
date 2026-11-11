@@ -2,6 +2,7 @@ package com.charles.livecaptionn.ui
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -11,8 +12,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -31,26 +32,26 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.HelpOutline
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.TextFields
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
-import com.charles.livecaptionn.compatibility.CompatibilityTier
-import com.charles.livecaptionn.compatibility.DeviceSpecs
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Translate
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -59,15 +60,19 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -78,21 +83,33 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.SystemUpdate
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.charles.livecaptionn.BuildConfig
+import com.charles.livecaptionn.compatibility.CompatibilityTier
+import com.charles.livecaptionn.compatibility.DeviceSpecs
+import com.charles.livecaptionn.overlay.OverlayFontCatalog
+import com.charles.livecaptionn.overlay.OverlayThemeCatalog
 import com.charles.livecaptionn.settings.AudioSource
 import com.charles.livecaptionn.settings.Language
 import com.charles.livecaptionn.settings.SttBackend
@@ -107,13 +124,20 @@ import com.charles.livecaptionn.ui.feedback.IssueDetailsDialog
 import com.charles.livecaptionn.ui.feedback.ReportProblemDialog
 import com.charles.livecaptionn.ui.feedback.SubmitSuccessSnackbar
 import com.charles.livecaptionn.ui.feedback.SupportAndFeedbackCard
-import com.charles.livecaptionn.overlay.OverlayFontCatalog
-import com.charles.livecaptionn.overlay.OverlayThemeCatalog
 import com.charles.livecaptionn.ui.l10n.LocalUiStrings
 import com.charles.livecaptionn.ui.l10n.UiLanguagePickerDialog
 import com.charles.livecaptionn.ui.l10n.UiLocalizationRepository.UiLocalizationStage
 import com.charles.livecaptionn.update.UpdateInfo
-import androidx.lifecycle.viewmodel.compose.viewModel
+
+private enum class StudioTab(
+    val titleKey: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
+    STUDIO("Live", Icons.Filled.GraphicEq),
+    STYLE("Overlay", Icons.Filled.Subtitles),
+    ENGINES("Models", Icons.Filled.Memory),
+    TOOLS("Tools", Icons.Filled.Tune)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,6 +152,9 @@ fun MainScreen(
 ) {
     val ui by viewModel.state.collectAsStateWithLifecycle()
     val t = LocalUiStrings.current
+    var selectedTabOrdinal by rememberSaveable { mutableIntStateOf(0) }
+    val selectedTab = StudioTab.entries.getOrElse(selectedTabOrdinal) { StudioTab.STUDIO }
+
     var translateUrlDraft by remember(ui.settings.serverBaseUrl) { mutableStateOf(ui.settings.serverBaseUrl) }
     var sttUrlDraft by remember(ui.settings.sttBaseUrl) { mutableStateOf(ui.settings.sttBaseUrl) }
     var showModelSheet by remember { mutableStateOf(false) }
@@ -140,9 +167,6 @@ fun MainScreen(
     )
     val feedbackState by feedbackVm.state.collectAsStateWithLifecycle()
 
-    // Re-check permission state on every resume so granting overlay/mic
-    // access in system Settings is reflected immediately when the user
-    // returns to the app — instead of requiring a close + reopen.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -160,15 +184,49 @@ fun MainScreen(
         return
     }
 
+    val modelReady = when (ui.settings.sttBackend) {
+        SttBackend.LOCAL_SHERPA -> ui.sherpaActiveModel != null
+        SttBackend.REMOTE_WHISPER -> true
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Filled.Translate, contentDescription = null, modifier = Modifier.size(28.dp))
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Filled.Translate,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                         Spacer(Modifier.width(10.dp))
-                        Text(t["LiveSub Pro"], fontWeight = FontWeight.Bold)
+                        Column {
+                            Text(
+                                text = t["LiveSub Pro"],
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = if (ui.runtime.running) {
+                                    "${t["Live"]} · ${ui.settings.sourceLanguageCode.uppercase()} → ${ui.settings.targetLanguageCode.uppercase()}"
+                                } else {
+                                    "${ui.settings.sourceLanguageCode.uppercase()} → ${ui.settings.targetLanguageCode.uppercase()}"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (ui.runtime.running) MaterialTheme.colorScheme.tertiary
+                                else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 },
                 actions = {
@@ -180,10 +238,25 @@ fun MainScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
                 )
             )
+        },
+        bottomBar = {
+            NavigationBar(
+                containerColor = MaterialTheme.colorScheme.surface,
+                tonalElevation = 3.dp
+            ) {
+                StudioTab.entries.forEachIndexed { index, tab ->
+                    NavigationBarItem(
+                        selected = selectedTabOrdinal == index,
+                        onClick = { selectedTabOrdinal = index },
+                        icon = { Icon(tab.icon, contentDescription = t[tab.titleKey]) },
+                        label = { Text(t[tab.titleKey], maxLines = 1) }
+                    )
+                }
+            }
         }
     ) { padding ->
         Column(
@@ -229,75 +302,100 @@ fun MainScreen(
                 }
             }
 
-            val modelReady = when (ui.settings.sttBackend) {
-                SttBackend.LOCAL_SHERPA -> ui.sherpaActiveModel != null
-                SttBackend.REMOTE_WHISPER -> true
+            when (selectedTab) {
+                StudioTab.STUDIO -> {
+                    CaptionControlCard(
+                        ui = ui,
+                        onStart = onStart,
+                        onStop = onStop,
+                        onRequestAudioPermission = onRequestAudioPermission,
+                        onOpenOverlaySettings = onOpenOverlaySettings,
+                        onDownloadModel = { ui.sherpaNeededModel?.let { viewModel.downloadSherpaModel(it) } },
+                        onCancelDownload = { ui.sherpaNeededModel?.let { viewModel.cancelSherpaModelDownload(it) } },
+                        onManageModels = { showModelSheet = true }
+                    )
+                    LanguageCard(
+                        ui = ui,
+                        viewModel = viewModel,
+                        onManageModels = { showModelSheet = true }
+                    )
+                    AudioSourceCard(
+                        ui = ui,
+                        viewModel = viewModel,
+                        onManageModels = { showModelSheet = true }
+                    )
+                    PermissionsCard(ui, onRequestAudioPermission, onOpenOverlaySettings)
+                }
+
+                StudioTab.STYLE -> {
+                    LiveOverlayPreviewCard(ui = ui)
+                    OverlaySettingsCard(
+                        ui = ui,
+                        viewModel = viewModel
+                    )
+                }
+
+                StudioTab.ENGINES -> {
+                    AudioSourceCard(
+                        ui = ui,
+                        viewModel = viewModel,
+                        onManageModels = { showModelSheet = true }
+                    )
+                    SherpaModelLibraryCard(
+                        states = ui.sherpaModels,
+                        activeModelId = ui.sherpaActiveModel?.id,
+                        neededModelId = ui.sherpaNeededModel?.id,
+                        onDownload = viewModel::downloadSherpaModel,
+                        onCancel = viewModel::cancelSherpaModelDownload,
+                        onDelete = viewModel::deleteSherpaModel
+                    )
+                    ServerCard(
+                        ui = ui,
+                        translateUrl = translateUrlDraft,
+                        onTranslateUrlChange = { translateUrlDraft = it },
+                        onSaveTranslateUrl = { viewModel.updateBaseUrl(translateUrlDraft) },
+                        onRefreshLibre = { viewModel.refreshLibreCatalog() },
+                        onSelectTranslationBackend = viewModel::updateTranslationBackend,
+                        sttUrl = sttUrlDraft,
+                        onSttUrlChange = { sttUrlDraft = it },
+                        onSaveSttUrl = { viewModel.updateSttUrl(sttUrlDraft) },
+                        showStt = ui.settings.audioSource == AudioSource.SYSTEM &&
+                            ui.settings.sttBackend == SttBackend.REMOTE_WHISPER
+                    )
+                }
+
+                StudioTab.TOOLS -> {
+                    FeatureToolsCard(
+                        settings = ui.settings,
+                        profiles = feedbackApp.container.captionProfiles,
+                        glossary = feedbackApp.container.glossary,
+                        micPermissionGranted = ui.micPermissionGranted,
+                        overlayPermissionGranted = ui.overlayPermissionGranted,
+                        modelReady = modelReady,
+                        onApplyProfile = viewModel::applyProfile,
+                        onSaveHistoryChange = viewModel::updateSaveHistory
+                    )
+                    UiLanguageCard(
+                        languageCode = ui.uiLanguageCode,
+                        busy = ui.uiLocalizationBusy,
+                        error = ui.uiLocalizationError,
+                        stage = ui.uiLocalizationStage,
+                        translatedCount = ui.uiLocalizationTranslated,
+                        translatedTotal = ui.uiLocalizationTotal,
+                        onSelect = viewModel::updateUiLanguage
+                    )
+                    DeviceCompatibilityCard(
+                        specs = ui.deviceSpecs,
+                        onWatchTutorial = { viewModel.openTutorial() },
+                        onSimulateTier = { viewModel.setSimulatedTier(it) }
+                    )
+                    SupportAndFeedbackCard(
+                        state = feedbackState,
+                        onReportProblem = { feedbackVm.showReportDialog() },
+                        onOpenReport = { feedbackVm.openIssueDetails(it) }
+                    )
+                }
             }
-            CaptionControlCard(
-                ui = ui,
-                onStart = onStart,
-                onStop = onStop,
-                onRequestAudioPermission = onRequestAudioPermission,
-                onOpenOverlaySettings = onOpenOverlaySettings,
-                onDownloadModel = { ui.sherpaNeededModel?.let { viewModel.downloadSherpaModel(it) } },
-                onManageModels = { showModelSheet = true }
-            )
-            PermissionsCard(ui, onRequestAudioPermission, onOpenOverlaySettings)
-            AudioSourceCard(ui, viewModel, onManageModels = { showModelSheet = true })
-            LanguageCard(
-                ui = ui,
-                viewModel = viewModel,
-                onManageModels = { showModelSheet = true }
-            )
-            OverlaySettingsCard(
-                ui = ui,
-                viewModel = viewModel
-            )
-            FeatureToolsCard(
-                settings = ui.settings,
-                profiles = feedbackApp.container.captionProfiles,
-                glossary = feedbackApp.container.glossary,
-                micPermissionGranted = ui.micPermissionGranted,
-                overlayPermissionGranted = ui.overlayPermissionGranted,
-                modelReady = modelReady,
-                onApplyProfile = viewModel::applyProfile,
-                onSaveHistoryChange = viewModel::updateSaveHistory
-            )
-            UiLanguageCard(
-                languageCode = ui.uiLanguageCode,
-                busy = ui.uiLocalizationBusy,
-                error = ui.uiLocalizationError,
-                stage = ui.uiLocalizationStage,
-                translatedCount = ui.uiLocalizationTranslated,
-                translatedTotal = ui.uiLocalizationTotal,
-                onSelect = viewModel::updateUiLanguage
-            )
-            ServerCard(
-                ui = ui,
-                translateUrl = translateUrlDraft,
-                onTranslateUrlChange = { translateUrlDraft = it },
-                onSaveTranslateUrl = { viewModel.updateBaseUrl(translateUrlDraft) },
-                onRefreshLibre = { viewModel.refreshLibreCatalog() },
-                onSelectTranslationBackend = viewModel::updateTranslationBackend,
-                sttUrl = sttUrlDraft,
-                onSttUrlChange = { sttUrlDraft = it },
-                onSaveSttUrl = { viewModel.updateSttUrl(sttUrlDraft) },
-                showStt = ui.settings.audioSource == AudioSource.SYSTEM &&
-                    ui.settings.sttBackend == SttBackend.REMOTE_WHISPER
-            )
-
-            DeviceCompatibilityCard(
-                specs = ui.deviceSpecs,
-                onWatchTutorial = { viewModel.openTutorial() },
-                onSimulateTier = { viewModel.setSimulatedTier(it) }
-            )
-            SupportAndFeedbackCard(
-                state = feedbackState,
-                onReportProblem = { feedbackVm.showReportDialog() },
-                onOpenReport = { feedbackVm.openIssueDetails(it) }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
 
             if (feedbackState.submitSuccess) {
                 SubmitSuccessSnackbar(
@@ -312,8 +410,10 @@ fun MainScreen(
         if (showModelSheet) {
             SherpaModelSheet(
                 states = ui.sherpaModels,
+                activeModelId = ui.sherpaActiveModel?.id,
                 onDismiss = { showModelSheet = false },
                 onDownload = viewModel::downloadSherpaModel,
+                onCancel = viewModel::cancelSherpaModelDownload,
                 onDelete = viewModel::deleteSherpaModel
             )
         }
@@ -377,13 +477,12 @@ private fun CaptionControlCard(
     onRequestAudioPermission: () -> Unit,
     onOpenOverlaySettings: () -> Unit,
     onDownloadModel: () -> Unit,
+    onCancelDownload: () -> Unit,
     onManageModels: () -> Unit
 ) {
     val isRunning = ui.runtime.running
     val t = LocalUiStrings.current
 
-    // What is actually blocking Start right now — the card only ever talks
-    // about the current state, never a leftover error from an earlier tap.
     val needsMic = ui.settings.audioSource == AudioSource.MIC && !ui.micPermissionGranted
     val needsOverlay = !ui.overlayPermissionGranted
     val needsModel = ui.settings.sttBackend == SttBackend.LOCAL_SHERPA && ui.sherpaActiveModel == null
@@ -393,64 +492,111 @@ private fun CaptionControlCard(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isRunning) MaterialTheme.colorScheme.primaryContainer
             else MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isRunning) 0.dp else 2.dp)
+        border = BorderStroke(
+            width = if (isRunning) 1.5.dp else 1.dp,
+            color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+        )
     ) {
         Column(Modifier.padding(20.dp)) {
             val statusColor = when {
-                isRunning -> MaterialTheme.colorScheme.primary
+                isRunning -> MaterialTheme.colorScheme.tertiary
                 ui.runtime.status == RecognitionStatus.ERROR -> MaterialTheme.colorScheme.error
-                else -> MaterialTheme.colorScheme.tertiary
+                canStart -> MaterialTheme.colorScheme.tertiary
+                else -> MaterialTheme.colorScheme.secondary
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(statusColor)
-                )
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    text = when {
-                        isRunning -> t["Live"] + " · " + t[ui.runtime.status.displayName]
-                        ui.runtime.status == RecognitionStatus.ERROR -> t["Couldn't start"]
-                        else -> t["Ready"]
-                    },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(statusColor)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = when {
+                            isRunning -> t["Live"] + " · " + t[ui.runtime.status.displayName]
+                            ui.runtime.status == RecognitionStatus.ERROR -> t["Couldn't start"]
+                            canStart -> t["Ready"]
+                            else -> t["Setup needed before captioning"]
+                        },
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                // Quick engine/source pill
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                ) {
+                    Text(
+                        text = if (ui.settings.audioSource == AudioSource.SYSTEM) t["System Audio"] else t["Microphone"],
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
 
             val err = ui.runtime.lastError?.trim().orEmpty()
-            if (err.isNotEmpty() && !isRunning) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = err,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
+            if (err.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.75f)
+                ) {
+                    Text(
+                        text = err,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                    )
+                }
             }
 
-            if (isRunning && ui.runtime.originalText.isNotBlank()) {
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = ui.runtime.originalText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2
-                )
-                if (ui.runtime.translatedText.isNotBlank()) {
-                    Text(
-                        text = ui.runtime.translatedText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2
-                    )
+            // Live Subtitle Monitor when running
+            if (isRunning) {
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Column(Modifier.padding(14.dp)) {
+                        if (ui.runtime.originalText.isNotBlank()) {
+                            Text(
+                                text = ui.runtime.originalText,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontStyle = FontStyle.Italic,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(4.dp))
+                        }
+                        val liveTranslated = ui.runtime.translatedText
+                            .ifBlank { ui.runtime.previewTranslatedText }
+                            .ifBlank { ui.runtime.originalText }
+                            .ifBlank { "…" }
+                        Text(
+                            text = liveTranslated,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
@@ -460,25 +606,29 @@ private fun CaptionControlCard(
                 Button(
                     onClick = onStart,
                     enabled = !isRunning && canStart,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp)
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(t["Start"])
+                    Text(t["Start"], fontWeight = FontWeight.Bold)
                 }
                 Button(
                     onClick = onStop,
                     enabled = isRunning,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
                     Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(t["Stop"])
+                    Text(t["Stop"], fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -498,15 +648,25 @@ private fun CaptionControlCard(
                                     progress = { neededState.progress },
                                     modifier = Modifier.fillMaxWidth()
                                 )
-                                Text(
-                                    text = t.format(
-                                        "Downloading %s model… %d%%",
-                                        neededModel?.displayName ?: "",
-                                        (neededState.progress * 100).toInt()
-                                    ),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = t.format(
+                                            "Downloading %s model… %d%%",
+                                            neededModel?.displayName ?: "",
+                                            (neededState.progress * 100).toInt()
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    TextButton(onClick = onCancelDownload) {
+                                        Text(t["Cancel"])
+                                    }
+                                }
                             }
                             neededModel != null -> {
                                 val langName = SherpaModelCatalog.LANGUAGES
@@ -555,10 +715,11 @@ private fun BlockerRow(text: String, actionLabel: String, onAction: () -> Unit) 
             Spacer(Modifier.width(8.dp))
             Text(text, style = MaterialTheme.typography.bodySmall)
         }
+        Spacer(Modifier.width(8.dp))
         FilledTonalButton(
             onClick = onAction,
-            shape = RoundedCornerShape(8.dp),
-            modifier = Modifier.defaultMinSize(minWidth = 140.dp, minHeight = 40.dp)
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier.defaultMinSize(minWidth = 136.dp, minHeight = 38.dp)
         ) {
             Text(actionLabel)
         }
@@ -575,7 +736,12 @@ private fun PermissionsCard(
 ) {
     val t = LocalUiStrings.current
     val allGranted = ui.micPermissionGranted && ui.overlayPermissionGranted
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(t["Permissions"])
             if (allGranted) {
@@ -622,7 +788,7 @@ private fun PermissionRow(label: String, granted: Boolean, onGrant: () -> Unit) 
             Icon(
                 imageVector = if (granted) Icons.Filled.CheckCircle else Icons.Filled.Error,
                 contentDescription = null,
-                tint = if (granted) MaterialTheme.colorScheme.primary
+                tint = if (granted) MaterialTheme.colorScheme.tertiary
                 else MaterialTheme.colorScheme.error,
                 modifier = Modifier.size(20.dp)
             )
@@ -648,7 +814,12 @@ private fun AudioSourceCard(
     onManageModels: () -> Unit
 ) {
     val t = LocalUiStrings.current
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(t["Audio Source"])
 
@@ -707,21 +878,42 @@ private fun AudioSourceCard(
                 val needed = ui.sherpaNeededModel
                 val neededState = needed?.let { ui.sherpaModels[it.id] }
                 when {
-                    active != null -> Text(
-                        text = t.format("Model ready: %s", active.displayName),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
+                    active != null -> Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = t.format("Model ready: %s", active.displayName),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onManageModels) {
+                            Text(t["All speech models"])
+                        }
+                    }
                     neededState?.downloading == true -> {
                         LinearProgressIndicator(
                             progress = { neededState.progress },
                             modifier = Modifier.fillMaxWidth()
                         )
-                        Text(
-                            text = t.format("Downloading %s model… %d%%", needed?.displayName ?: "", (neededState.progress * 100).toInt()),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = t.format("Downloading %s model… %d%%", needed?.displayName ?: "", (neededState.progress * 100).toInt()),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { needed?.let { viewModel.cancelSherpaModelDownload(it) } }) {
+                                Text(t["Cancel"])
+                            }
+                        }
                     }
                     needed != null -> {
                         Text(
@@ -729,13 +921,21 @@ private fun AudioSourceCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        OutlinedButton(
-                            onClick = { viewModel.downloadSherpaModel(needed) },
-                            shape = RoundedCornerShape(8.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(t.format("Download model (~%d MB)", needed.totalSizeMb))
+                            OutlinedButton(
+                                onClick = { viewModel.downloadSherpaModel(needed) },
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text(t.format("Download model (~%d MB)", needed.totalSizeMb))
+                            }
+                            TextButton(onClick = onManageModels) {
+                                Text(t["All speech models"])
+                            }
                         }
                         neededState?.error?.let { modelError ->
                             Text(
@@ -745,14 +945,16 @@ private fun AudioSourceCard(
                             )
                         }
                     }
-                    else -> Text(
-                        text = t["No on-device model for this language yet."],
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-                TextButton(onClick = onManageModels) {
-                    Text(t["All speech models"])
+                    else -> {
+                        Text(
+                            text = t["No on-device model for this language yet."],
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        TextButton(onClick = onManageModels) {
+                            Text(t["All speech models"])
+                        }
+                    }
                 }
             } else {
                 Text(
@@ -783,8 +985,8 @@ private fun ChoiceChip(
 
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .border(1.5.dp, border, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.5.dp, border, RoundedCornerShape(12.dp))
             .background(bg)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 12.dp),
@@ -793,7 +995,12 @@ private fun ChoiceChip(
     ) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(6.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+            maxLines = 1
+        )
     }
 }
 
@@ -809,11 +1016,15 @@ private fun LanguageCard(
     val targetOptions = ui.availableTargetLanguages
     val t = LocalUiStrings.current
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(t["Languages"])
 
-            // Source
             Text(t["Source (spoken)"], style = MaterialTheme.typography.labelMedium)
             LanguagePickerField(
                 selectedCode = ui.settings.sourceLanguageCode,
@@ -822,7 +1033,6 @@ private fun LanguageCard(
                 onPick = { viewModel.updateSource(it.code) }
             )
 
-            // Swap + target
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -842,21 +1052,26 @@ private fun LanguageCard(
                 onPick = { viewModel.updateTarget(it.code) }
             )
 
-            // Context-specific helper text
-            val vmAudio = ui.settings.audioSource
             val vmStt = ui.settings.sttBackend
             val usingMlKit = ui.settings.translationBackend == TranslationBackend.ML_KIT
             when {
                 vmStt == SttBackend.LOCAL_SHERPA -> {
-                    Text(
-                        text = t["On-device: the source list only shows languages with a Sherpa speech model."],
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    TextButton(onClick = onManageModels) {
-                        Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(t["Speech models"])
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = t["On-device: the source list only shows languages with a Sherpa speech model."],
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onManageModels) {
+                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(t["Speech models"])
+                        }
                     }
                 }
                 usingMlKit -> {
@@ -902,16 +1117,18 @@ private fun LanguageCard(
                 }
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(t["Auto-detect source"], style = MaterialTheme.typography.bodyMedium)
-                Switch(
-                    checked = ui.settings.autoDetectSource,
-                    onCheckedChange = viewModel::updateAutoDetect
-                )
+            if (ui.settings.sttBackend != SttBackend.LOCAL_SHERPA) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(t["Auto-detect source"], style = MaterialTheme.typography.bodyMedium)
+                    Switch(
+                        checked = ui.settings.autoDetectSource,
+                        onCheckedChange = viewModel::updateAutoDetect
+                    )
+                }
             }
         }
     }
@@ -935,8 +1152,8 @@ private fun LanguagePickerField(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(10.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.5.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
             .clickable(enabled = options.isNotEmpty()) { open = true }
             .padding(horizontal = 14.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -945,6 +1162,7 @@ private fun LanguagePickerField(
         Text(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
             color = if (options.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
             else MaterialTheme.colorScheme.onSurface,
             maxLines = 1
@@ -1056,14 +1274,78 @@ internal fun LanguagePickerDialog(
     )
 }
 
-// ── Sherpa model management ──
+// ── Sherpa model management (Card + Sheet) ──
+
+@Composable
+private fun SherpaModelLibraryCard(
+    states: Map<String, SherpaModelState>,
+    activeModelId: String?,
+    neededModelId: String?,
+    onDownload: (SherpaModel) -> Unit,
+    onCancel: (SherpaModel) -> Unit,
+    onDelete: (SherpaModel) -> Unit
+) {
+    val t = LocalUiStrings.current
+    val installedCount = SherpaModelCatalog.ALL.count { states[it.id]?.installed == true }
+    val installedMb = SherpaModelCatalog.ALL
+        .filter { states[it.id]?.installed == true }
+        .sumOf { it.totalSizeMb }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionLabel(t["Speech models"])
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = "$installedCount installed · ~${formatModelSize(installedMb)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+            Text(
+                text = t["Sherpa models run fully offline on this phone. One download per language — delete any time to free storage."],
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            SherpaModelCatalog.ALL.forEach { model ->
+                SherpaModelRow(
+                    model = model,
+                    state = states[model.id] ?: SherpaModelState(),
+                    isActive = model.id == activeModelId,
+                    isRecommended = model.id == neededModelId,
+                    onDownload = { onDownload(model) },
+                    onCancel = { onCancel(model) },
+                    onDelete = { onDelete(model) }
+                )
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SherpaModelSheet(
     states: Map<String, SherpaModelState>,
+    activeModelId: String? = null,
     onDismiss: () -> Unit,
     onDownload: (SherpaModel) -> Unit,
+    onCancel: (SherpaModel) -> Unit = {},
     onDelete: (SherpaModel) -> Unit
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -1089,7 +1371,10 @@ private fun SherpaModelSheet(
                 SherpaModelRow(
                     model = model,
                     state = states[model.id] ?: SherpaModelState(),
+                    isActive = model.id == activeModelId,
+                    isRecommended = false,
                     onDownload = { onDownload(model) },
+                    onCancel = { onCancel(model) },
                     onDelete = { onDelete(model) }
                 )
             }
@@ -1102,53 +1387,90 @@ private fun SherpaModelSheet(
 private fun SherpaModelRow(
     model: SherpaModel,
     state: SherpaModelState,
+    isActive: Boolean = false,
+    isRecommended: Boolean = false,
     onDownload: () -> Unit,
+    onCancel: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     val t = LocalUiStrings.current
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (state.installed)
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-            else MaterialTheme.colorScheme.surfaceVariant
-        )
+            containerColor = when {
+                isActive -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                state.installed -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
+                else -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+            }
+        ),
+        border = if (isActive || isRecommended) {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+        } else null
     ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column(Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = model.displayName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (isActive) {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            ) {
+                                Text(
+                                    text = "ACTIVE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
                     Text(
-                        text = model.displayName,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    Text(
-                        text = "~${formatModelSize(model.totalSizeMb)}",
+                        text = "~${formatModelSize(model.totalSizeMb)} · ${model.languages.joinToString(", ") { it.uppercase() }}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (model.description.isNotBlank()) {
+                        Text(
+                            text = model.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
+                Spacer(Modifier.width(8.dp))
                 when {
-                    state.downloading -> CircularProgressIndicator(
-                        modifier = Modifier.size(22.dp),
-                        strokeWidth = 2.dp
-                    )
+                    state.downloading -> TextButton(onClick = onCancel) {
+                        Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(t["Cancel"])
+                    }
                     state.installed -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Filled.CheckCircle,
                             contentDescription = t["Installed"],
-                            tint = MaterialTheme.colorScheme.primary
+                            tint = MaterialTheme.colorScheme.tertiary
                         )
-                        IconButton(onClick = onDelete) {
+                        IconButton(onClick = { showDeleteConfirm = true }) {
                             Icon(Icons.Filled.Delete, contentDescription = t["Delete"])
                         }
                     }
-                    else -> FilledTonalButton(onClick = onDownload, shape = RoundedCornerShape(8.dp)) {
+                    else -> FilledTonalButton(onClick = onDownload, shape = RoundedCornerShape(10.dp)) {
                         Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(if (state.error != null) t["Retry"] else t["Get"])
@@ -1160,8 +1482,9 @@ private fun SherpaModelRow(
                     progress = { state.progress },
                     modifier = Modifier.fillMaxWidth()
                 )
+                val downloadedMb = (model.totalSizeMb * state.progress).toInt()
                 Text(
-                    text = "${(state.progress * 100).toInt()}%",
+                    text = "${(state.progress * 100).toInt()}% ($downloadedMb / ${model.totalSizeMb} MB)",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -1175,6 +1498,31 @@ private fun SherpaModelRow(
             }
         }
     }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(t["Delete"]) },
+            text = {
+                Text("Remove ${model.displayName} (~${formatModelSize(model.totalSizeMb)}) from device storage?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteConfirm = false
+                        onDelete()
+                    }
+                ) {
+                    Text(t["Delete"], color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(t["Cancel"])
+                }
+            }
+        )
+    }
 }
 
 private fun formatModelSize(sizeMb: Int): String {
@@ -1185,7 +1533,90 @@ private fun formatModelSize(sizeMb: Int): String {
     return "$sizeMb MB"
 }
 
-// ── Overlay Settings ──
+// ── Live Overlay Preview + Settings ──
+
+@Composable
+private fun LiveOverlayPreviewCard(ui: MainUiState) {
+    val t = LocalUiStrings.current
+    val theme = OverlayThemeCatalog.find(ui.settings.overlayThemeId)
+    val bgColor = Color(
+        red = android.graphics.Color.red(theme.backgroundRgb) / 255f,
+        green = android.graphics.Color.green(theme.backgroundRgb) / 255f,
+        blue = android.graphics.Color.blue(theme.backgroundRgb) / 255f,
+        alpha = ui.settings.overlayOpacity.coerceIn(0.45f, 1f)
+    )
+    val textColor = Color(
+        red = android.graphics.Color.red(theme.textRgb) / 255f,
+        green = android.graphics.Color.green(theme.textRgb) / 255f,
+        blue = android.graphics.Color.blue(theme.textRgb) / 255f,
+        alpha = 1f
+    )
+    val fontFamily = when (ui.settings.overlayFontId) {
+        "monospace" -> FontFamily.Monospace
+        "serif" -> FontFamily.Serif
+        else -> FontFamily.SansSerif
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SectionLabel("Live Subtitle Preview")
+                Text(
+                    text = "${theme.label} · ${ui.settings.textSizeSp.toInt()}sp",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(bgColor)
+                    .border(1.dp, textColor.copy(alpha = 0.25f), RoundedCornerShape(18.dp))
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (ui.settings.showOriginal) {
+                        Text(
+                            text = ui.runtime.originalText.ifBlank { "Original spoken phrase appears here" },
+                            color = textColor.copy(alpha = 0.80f),
+                            fontSize = (ui.settings.textSizeSp * 0.78f).coerceIn(12f, 20f).sp,
+                            fontFamily = fontFamily,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    Text(
+                        text = ui.runtime.translatedText.ifBlank {
+                            t["Live captions & translation on your device"]
+                        },
+                        color = textColor,
+                        fontSize = ui.settings.textSizeSp.sp,
+                        fontFamily = fontFamily,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun OverlaySettingsCard(
@@ -1193,8 +1624,13 @@ private fun OverlaySettingsCard(
     viewModel: MainViewModel
 ) {
     val t = LocalUiStrings.current
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SectionLabel(t["Overlay"])
 
             Text(t.format("Text size: %dsp", ui.settings.textSizeSp.toInt()), style = MaterialTheme.typography.bodyMedium)
@@ -1211,19 +1647,30 @@ private fun OverlaySettingsCard(
                 onValueChange = viewModel::updateOpacity
             )
 
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(t["Show original text"], style = MaterialTheme.typography.bodyMedium)
+                Column(Modifier.weight(1f)) {
+                    Text(t["Show original text"], style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = "Display spoken source language above translated subtitles.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Switch(
                     checked = ui.settings.showOriginal,
                     onCheckedChange = viewModel::updateShowOriginal
                 )
             }
 
-            Text(t["Overlay theme"], style = MaterialTheme.typography.bodyMedium)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
+            Text(t["Overlay theme"], style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1240,7 +1687,7 @@ private fun OverlaySettingsCard(
                 }
             }
 
-            Text(t["Overlay font"], style = MaterialTheme.typography.bodyMedium)
+            Text(t["Overlay font"], style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1276,7 +1723,12 @@ private fun ServerCard(
     showStt: Boolean
 ) {
     val t = LocalUiStrings.current
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.Settings, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -1291,7 +1743,7 @@ private fun ServerCard(
             ) {
                 ChoiceChip(
                     label = if (isTranslateUnsupported) t["On-device (ML Kit)"] + " 🔒" else t["On-device (ML Kit)"],
-                    icon = if (isTranslateUnsupported) Icons.Filled.Lock else Icons.Filled.Mic,
+                    icon = if (isTranslateUnsupported) Icons.Filled.Lock else Icons.Filled.Bolt,
                     selected = ui.settings.translationBackend == TranslationBackend.ML_KIT,
                     onClick = { onSelectTranslationBackend(TranslationBackend.ML_KIT) },
                     modifier = Modifier.weight(1f)
@@ -1487,7 +1939,12 @@ private fun UiLanguageCard(
         "${selected?.name.orEmpty()} ($languageCode)"
     }
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SectionLabel(t["Interface language"])
 
@@ -1733,7 +2190,12 @@ private fun DeviceCompatibilityCard(
     if (specs == null) return
     var showSimMenu by remember { mutableStateOf(false) }
 
-    Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1784,11 +2246,13 @@ private fun DeviceCompatibilityCard(
                     Spacer(Modifier.width(4.dp))
                     Text("Tutorial & Guide", fontSize = 12.sp)
                 }
-                OutlinedButton(
-                    onClick = { showSimMenu = true },
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Test Tier...", fontSize = 12.sp)
+                if (BuildConfig.DEBUG) {
+                    OutlinedButton(
+                        onClick = { showSimMenu = true },
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Test Tier...", fontSize = 12.sp)
+                    }
                 }
             }
 
@@ -1826,5 +2290,3 @@ private fun DeviceCompatibilityCard(
         }
     }
 }
-
-

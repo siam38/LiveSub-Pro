@@ -5,7 +5,8 @@ data class OverlayTextDisplay(
     val originalText: String,
     val originalTextSizeSp: Float,
     val translatedText: String,
-    val translatedTextSizeSp: Float
+    val translatedTextSizeSp: Float,
+    val livePartialText: String = ""
 )
 
 // One cue at a time, shown in full. Translated line is the hero;
@@ -20,6 +21,7 @@ fun computeOverlayTextDisplay(ui: OverlayUiState): OverlayTextDisplay {
         originalText = ui.originalText.trim().replace(Regex("\\s+"), " "),
         originalTextSizeSp = scaledOriginalSize,
         translatedText = ui.transcriptText.ifBlank { "…" },
-        translatedTextSizeSp = ui.textSizeSp
+        translatedTextSizeSp = ui.textSizeSp,
+        livePartialText = ui.livePartialText.trim().replace(Regex("\\s+"), " ")
     )
 }

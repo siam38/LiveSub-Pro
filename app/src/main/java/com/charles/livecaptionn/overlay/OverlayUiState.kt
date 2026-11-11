@@ -6,6 +6,7 @@ data class OverlayUiState(
     val originalText: String = "",
     val translatedText: String = "",
     val transcriptText: String = "",
+    val livePartialText: String = "",
     val status: RecognitionStatus = RecognitionStatus.IDLE,
     /** Shown under status when STT/network fails (system-audio path). */
     val statusDetail: String? = null,
@@ -13,8 +14,6 @@ data class OverlayUiState(
     val opacity: Float = 0.65f,
     val showOriginal: Boolean = true,
     val minimized: Boolean = false,
-    /** Callers are responsible for falling back to the default theme/font when
-     * the current entitlement doesn't include Pro (see [OverlayThemeCatalog.FREE_THEME_ID]). */
     val sourceCode: String = "zh",
     val targetCode: String = "en",
     val themeId: String = OverlayThemeCatalog.FREE_THEME_ID,
