@@ -4,6 +4,11 @@ on:
   push:
     branches: [ '**' ]
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish this build as a GitHub Release'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -81,12 +86,22 @@ jobs:
 
       - name: Prepare APK
         run: |
-          cp app/build/outputs/apk/github/debug/app-github-debug.apk LiveSub-Pro.apk
-          ls -la LiveSub-Pro.apk
+          cp app/build/outputs/apk/github/debug/app-github-debug.apk LiveSub-Pro-v1.0.${{ github.run_number }}.apk
+          ls -la LiveSub-Pro-v1.0.${{ github.run_number }}.apk
 
+      - name: Upload test build
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiveSub-Pro-v1.0.${{ github.run_number }}
+          path: LiveSub-Pro-v1.0.${{ github.run_number }}.apk
+
+      # Normal builds are test builds only (artifact above). A Release is
+      # published solely on a manual run with the "release" input ticked,
+      # after a test build has been checked and confirmed OK.
       - name: Publish APK to a GitHub Release
+        if: ${{ inputs.release }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: LiveSub Pro v1.0.${{ github.run_number }}
-          files: LiveSub-Pro.apk
+          files: LiveSub-Pro-v1.0.${{ github.run_number }}.apk

@@ -17,6 +17,17 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
+// How fast a spoken segment is finalized into a subtitle cue. A cue is only
+// translated once its segment ends, so these two values are the subtitle
+// latency: PAUSE_SECONDS of trailing silence ends a segment at a natural
+// phrase pause, and MAX_SEGMENT_SECONDS caps continuous speech (rule3's
+// min utterance length — sherpa's own default there is 20s, which made
+// unbroken dialogue wait up to 20s for its first subtitle).
+internal object SherpaEndpointTuning {
+    const val PAUSE_SECONDS = 0.5f
+    const val MAX_SEGMENT_SECONDS = 7.0f
+}
+
 // Streaming recognition via sherpa-onnx. Picks the best installed model for
 // the requested language from SherpaModelCatalog.
 class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttClient {
@@ -81,8 +92,8 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
                         modelConfig = modelConfig,
                         endpointConfig = EndpointConfig(
                             rule1 = EndpointRule(false, 2.4f, 0.0f),
-                            rule2 = EndpointRule(true, 1.0f, 0.0f),
-                            rule3 = EndpointRule(false, 0.0f, 20.0f)
+                            rule2 = EndpointRule(true, SherpaEndpointTuning.PAUSE_SECONDS, 0.0f),
+                            rule3 = EndpointRule(false, 0.0f, SherpaEndpointTuning.MAX_SEGMENT_SECONDS)
                         ),
                         enableEndpoint = true,
                         decodingMethod = "greedy_search"
