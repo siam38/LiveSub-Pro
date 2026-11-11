@@ -38,21 +38,15 @@ import com.charles.livecaptionn.speech.SystemAudioEngine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.ConcurrentLinkedQueue
 
-@OptIn(FlowPreview::class)
 class CaptionForegroundService : Service() {
     private var serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var app: LiveCaptionApp
@@ -66,20 +60,7 @@ class CaptionForegroundService : Service() {
     private var overlayController: OverlayController? = null
     private var paused = false
     private var failureMessage: String? = null
-    private var bufferedText = ""
     private val lineIdCounter = java.util.concurrent.atomic.AtomicLong(0)
-    @Volatile
-    private var bufferedLineId: Long = NO_LINE_ID
-    @Volatile
-    private var historyOnNextTranslate = false
-    private val pendingFinalTranslations = ConcurrentLinkedQueue<TranslationRequest>()
-
-    /** Mic partials arrive faster than 400ms; cancel+restart jobs never finish. Debounce coalesces to one translate. */
-    private val translateRequests = MutableSharedFlow<Unit>(
-        replay = 0,
-        extraBufferCapacity = 1,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
 
     private var currentAudioSource = AudioSource.MIC
 
@@ -234,22 +215,6 @@ class CaptionForegroundService : Service() {
                 }
             }
 
-            launch(Dispatchers.IO) {
-                translateRequests
-                    .debounce(TRANSLATE_DEBOUNCE_MS)
-                    .collect {
-                        while (true) {
-                            val final = pendingFinalTranslations.poll() ?: break
-                            translateSnapshot(final)
-                        }
-                        val partial = synchronized(this@CaptionForegroundService) {
-                            TranslationRequest(bufferedText, bufferedLineId, historyOnNextTranslate)
-                                .also { historyOnNextTranslate = false }
-                        }
-                        if (partial.text.isNotBlank()) translateSnapshot(partial)
-                    }
-            }
-
             val onSpeechResult = { result: SpeechResult ->
                 val transcript = result.text.trim()
                 Log.d("CaptionService", "onSpeechResult final=${result.isFinal} text='$transcript'")
@@ -377,7 +342,9 @@ class CaptionForegroundService : Service() {
         settings: CaptionSettings,
         hasPro: Boolean
     ) = OverlayUiState(
-        originalText = runtime.originalText,
+        // Bilingual original is the completed sentence paired with the cue
+        // on screen, not the live partial of the next sentence.
+        originalText = overlayOriginalText(runtime),
         translatedText = runtime.translatedText.ifBlank { runtime.originalText },
         transcriptText = overlayTranscriptText(runtime),
         status = runtime.status,
@@ -398,24 +365,16 @@ class CaptionForegroundService : Service() {
     @Volatile private var lastQueuedKey: String? = null
 
     private fun queueTranslation(text: String, lineId: Long, isFinal: Boolean = false) {
-        val key = "$lineId|$isFinal|$text"
+        // Partials are never translated: translating a half-heard sentence
+        // gives broken, flickering subtitles. A partial only updates the
+        // live transcript above; the translator runs once, on the complete
+        // final sentence, and its result becomes the next subtitle cue.
+        if (!isFinal) return
+        val key = "$lineId|$text"
         if (key == lastQueuedKey) return
         lastQueuedKey = key
-        if (isFinal) {
-            // A finished sentence must not wait behind the partial debounce.
-            synchronized(this) {
-                bufferedText = ""
-                historyOnNextTranslate = false
-            }
-            val request = TranslationRequest(text, lineId, true)
-            serviceScope.launch { translateSnapshot(request) }
-            return
-        }
-        synchronized(this) {
-            bufferedText = text
-            bufferedLineId = lineId
-        }
-        translateRequests.tryEmit(Unit)
+        val request = TranslationRequest(text, lineId, true)
+        serviceScope.launch { translateSnapshot(request) }
     }
 
     private suspend fun translateSnapshot(request: TranslationRequest) {
@@ -582,7 +541,5 @@ class CaptionForegroundService : Service() {
 
         private const val CHANNEL_ID = "caption_channel"
         private const val NOTIF_ID = 2001
-        private const val TRANSLATE_DEBOUNCE_MS = 120L
-        private const val NO_LINE_ID = -1L
     }
 }

@@ -14,11 +14,10 @@ internal const val MAX_TRANSCRIPT_LINES = 30
 /**
  * Record a new STT result into the transcript line list.
  *
- * Open/closed state is driven solely by [isFinal] (Vosk's own segment
- * boundary), never by whether a translation has landed yet — a translation
- * can land mid-sentence (e.g. during a natural speech pause that triggers
- * the translate debounce but not Vosk's finalizer), and must not cause the
- * next partial of the same utterance to be appended as a duplicate line.
+ * Open/closed state is driven solely by [isFinal] (the recognizer's own
+ * segment boundary), never by whether a translation has landed yet — a
+ * translation landing must not cause the next partial of the same
+ * utterance to be appended as a duplicate line.
  *
  * @param lines        Current transcript lines (scroll-back buffer).
  * @param originalText The latest recognized text from STT.
@@ -73,19 +72,29 @@ internal fun updateTranscriptTranslation(
     }
 }
 
+/** The transcript line whose translation is currently on screen, if any. */
+internal fun overlayCueLine(runtime: CaptionRuntimeState): CaptionRuntimeLine? =
+    runtime.transcriptLines.lastOrNull { it.translatedText.isNotBlank() }
+
 /**
- * Build the subtitle cue for the overlay. Real subtitles show ONE cue at a
- * time: only the latest line's translation, never a scrolling paragraph of
- * every line so far. Older lines still live in transcriptLines for history.
+ * Build the subtitle cue for the overlay. Real subtitles show ONE completed
+ * cue at a time and hold it steady: while the next sentence is still being
+ * spoken (its line has no translation yet), the previous completed cue stays
+ * on screen instead of flickering through fragment translations. Only when a
+ * new line's full translation lands does the cue swap, in one step.
  */
 internal fun overlayTranscriptText(runtime: CaptionRuntimeState): String {
-    val line = runtime.transcriptLines.lastOrNull()
-    val translated = when {
-        line == null -> runtime.translatedText
-        line.translatedText.isNotBlank() -> line.translatedText
-        line.originalText == runtime.originalText -> runtime.translatedText
-        else -> ""
-    }
+    val translated = overlayCueLine(runtime)?.translatedText
+        ?: runtime.translatedText.takeIf { runtime.transcriptLines.isEmpty() }
+        ?: ""
     // Show the current cue in full — never roll or cut it.
     return translated.trim().replace(Regex("\\s+"), " ")
 }
+
+/**
+ * The original text paired with the on-screen cue (bilingual mode). This is
+ * the completed sentence for the displayed translation — not the live
+ * partial of the sentence currently being spoken.
+ */
+internal fun overlayOriginalText(runtime: CaptionRuntimeState): String =
+    overlayCueLine(runtime)?.originalText?.trim()?.replace(Regex("\\s+"), " ") ?: ""

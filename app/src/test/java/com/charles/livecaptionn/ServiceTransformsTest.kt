@@ -2,6 +2,7 @@ package com.charles.livecaptionn
 
 import com.charles.livecaptionn.service.CaptionRuntimeLine
 import com.charles.livecaptionn.service.CaptionRuntimeState
+import com.charles.livecaptionn.service.overlayOriginalText
 import com.charles.livecaptionn.service.overlayTranscriptText
 import com.charles.livecaptionn.service.recordTranscriptResult
 import com.charles.livecaptionn.service.updateTranscriptTranslation
@@ -36,10 +37,9 @@ class ServiceTransformsTest {
 
     @Test
     fun recordTranscriptResult_translatedButNotFinal_stillReplaces() {
-        // Regression test for GitHub issue #1: a translation landing mid-sentence
-        // (e.g. during a natural speech pause that fires the translate debounce
-        // but not Vosk's finalizer) must not cause the next partial to be
-        // appended as a duplicate line — it must still replace in place.
+        // Regression test for GitHub issue #1: a line that already carries a
+        // translation but is not final yet must still be replaced in place by
+        // the next partial — not appended as a duplicate line.
         val lines = listOf(
             CaptionRuntimeLine(id = 1L, originalText = "hello", translatedText = "xin chao", isFinal = false)
         )
@@ -178,5 +178,83 @@ class ServiceTransformsTest {
             )
         )
         assertEquals("the gioi", overlayTranscriptText(state))
+    }
+
+    @Test
+    fun overlayTranscriptText_holdsPreviousCueWhileNextSentenceIsPartial() {
+        // Real-subtitle behaviour: while the next sentence is still being
+        // spoken, the completed previous cue stays on screen — it must not
+        // be replaced by (untranslated) partial fragments.
+        val state = CaptionRuntimeState(
+            originalText = "next partial frag",
+            translatedText = "xin chao",
+            transcriptLines = listOf(
+                CaptionRuntimeLine(id = 1L, originalText = "hello", translatedText = "xin chao", isFinal = true),
+                CaptionRuntimeLine(id = 2L, originalText = "next partial frag", isFinal = false)
+            )
+        )
+        assertEquals("xin chao", overlayTranscriptText(state))
+    }
+
+    @Test
+    fun overlayTranscriptText_holdsPreviousCueWhileFinalTranslationIsPending() {
+        val state = CaptionRuntimeState(
+            originalText = "world",
+            translatedText = "xin chao",
+            transcriptLines = listOf(
+                CaptionRuntimeLine(id = 1L, originalText = "hello", translatedText = "xin chao", isFinal = true),
+                CaptionRuntimeLine(id = 2L, originalText = "world", isFinal = true)
+            )
+        )
+        assertEquals("xin chao", overlayTranscriptText(state))
+    }
+
+    @Test
+    fun overlayTranscriptText_swapsCueWhenNewFinalTranslationLands() {
+        val state = CaptionRuntimeState(
+            originalText = "world",
+            translatedText = "the gioi",
+            transcriptLines = listOf(
+                CaptionRuntimeLine(id = 1L, originalText = "hello", translatedText = "xin chao", isFinal = true),
+                CaptionRuntimeLine(id = 2L, originalText = "world", translatedText = "the gioi", isFinal = true)
+            )
+        )
+        assertEquals("the gioi", overlayTranscriptText(state))
+    }
+
+    @Test
+    fun overlayTranscriptText_noCueBeforeFirstTranslation() {
+        val state = CaptionRuntimeState(
+            originalText = "hel",
+            transcriptLines = listOf(
+                CaptionRuntimeLine(id = 1L, originalText = "hel", isFinal = false)
+            )
+        )
+        assertEquals("", overlayTranscriptText(state))
+    }
+
+    // ── overlayOriginalText ──
+
+    @Test
+    fun overlayOriginalText_returnsOriginalPairedWithCue() {
+        val state = CaptionRuntimeState(
+            originalText = "next partial frag",
+            transcriptLines = listOf(
+                CaptionRuntimeLine(id = 1L, originalText = "hello", translatedText = "xin chao", isFinal = true),
+                CaptionRuntimeLine(id = 2L, originalText = "next partial frag", isFinal = false)
+            )
+        )
+        assertEquals("hello", overlayOriginalText(state))
+    }
+
+    @Test
+    fun overlayOriginalText_blankBeforeFirstTranslation() {
+        val state = CaptionRuntimeState(
+            originalText = "hel",
+            transcriptLines = listOf(
+                CaptionRuntimeLine(id = 1L, originalText = "hel", isFinal = false)
+            )
+        )
+        assertEquals("", overlayOriginalText(state))
     }
 }
