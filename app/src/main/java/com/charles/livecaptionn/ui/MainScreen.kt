@@ -578,43 +578,6 @@ private fun CaptionControlCard(
                         )
                     }
                 }
-                ui.deviceSpecs?.let { specs ->
-                    val supportLabel = when (specs.tier) {
-                        CompatibilityTier.PASSED -> "Supported"
-                        CompatibilityTier.BORDERLINE -> "Limited"
-                        CompatibilityTier.UNSUPPORTED -> "Unsupported"
-                    }
-                    val supportColor = when (specs.tier) {
-                        CompatibilityTier.PASSED -> MaterialTheme.colorScheme.tertiary
-                        CompatibilityTier.BORDERLINE -> Color(0xFFE65100)
-                        CompatibilityTier.UNSUPPORTED -> MaterialTheme.colorScheme.error
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(999.dp),
-                        color = supportColor.copy(alpha = 0.14f)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                if (specs.tier == CompatibilityTier.PASSED) Icons.Filled.CheckCircle else Icons.Filled.Error,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp),
-                                tint = supportColor
-                            )
-                            Spacer(Modifier.width(4.dp))
-                            Text(
-                                text = supportLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = supportColor,
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    }
-                }
                 Surface(
                     shape = RoundedCornerShape(999.dp),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
@@ -880,6 +843,7 @@ private fun DashboardCard(ui: MainUiState) {
     var deviceFreeMb by remember { mutableStateOf(0L) }
     var deviceTotalMb by remember { mutableStateOf(0L) }
     var appCpuPct by remember { mutableStateOf(-1) }
+    val specs = ui.deviceSpecs
     LaunchedEffect(Unit) {
         val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
         val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
@@ -925,6 +889,44 @@ private fun DashboardCard(ui: MainUiState) {
                 Spacer(Modifier.width(8.dp))
                 SectionLabel("Dashboard")
                 Spacer(Modifier.weight(1f))
+                ui.deviceSpecs?.let { specs ->
+                    val supportLabel = when (specs.tier) {
+                        CompatibilityTier.PASSED -> "Supported"
+                        CompatibilityTier.BORDERLINE -> "Limited"
+                        CompatibilityTier.UNSUPPORTED -> "Unsupported"
+                    }
+                    val supportColor = when (specs.tier) {
+                        CompatibilityTier.PASSED -> MaterialTheme.colorScheme.tertiary
+                        CompatibilityTier.BORDERLINE -> Color(0xFFE65100)
+                        CompatibilityTier.UNSUPPORTED -> MaterialTheme.colorScheme.error
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = supportColor.copy(alpha = 0.14f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (specs.tier == CompatibilityTier.PASSED) Icons.Filled.CheckCircle else Icons.Filled.Error,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = supportColor
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = supportLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = supportColor,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
                 Surface(
                     shape = RoundedCornerShape(6.dp),
                     color = if (ui.runtime.running) MaterialTheme.colorScheme.tertiary
