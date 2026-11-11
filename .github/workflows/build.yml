@@ -81,6 +81,15 @@ jobs:
       - name: Run unit tests
         run: ./gradlew testGithubDebugUnitTest
 
+      - name: Upload unit test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-run-${{ github.run_number }}
+          path: |
+            app/build/reports/tests/testGithubDebugUnitTest/
+            app/build/test-results/testGithubDebugUnitTest/
+
       - name: Build debug APK
         run: ./gradlew assembleGithubDebug
 

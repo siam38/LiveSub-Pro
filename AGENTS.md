@@ -1,42 +1,45 @@
-# Repository Guidelines
+# AGENTS.md — Developer & Agent Architecture Guide for LiveSub Pro
 
-## Project Structure & Module Organization
+## Project Overview
 
-LiveCaptionN is a single-module Android project. The root Gradle files (`settings.gradle.kts`, `build.gradle.kts`, `gradle.properties`) configure the build, and the Android app lives in `app/`. Production Kotlin code is under `app/src/main/java/com/charles/livecaptionn/`, grouped by role:
+**LiveSub Pro** (`com.charles.livecaptionn`) is a real-time Android speech-to-text, live translation, and floating subtitle overlay application targeting Android 16 (API 36, minSdk 26).
 
-- `ui/` for Jetpack Compose screens and view models.
-- `service/`, `speech/`, and `overlay/` for caption runtime behavior.
-- `translation/`, `data/`, `settings/`, and `di/` for repositories, models, persistence, and manual dependency wiring.
-- `ads/` for AdMob integration (banner, native, app-open).
-- `update/` for GitHub releases checking, notification, and WorkManager scheduling.
+Key characteristics:
+- **No ads, no paywalls, no Pro gating:** Every theme, font, language, and preset feature is unlocked.
+- **On-device streaming ASR:** Powered by `sherpa-onnx-2.0.1` (`LocalSherpaSttClient`, `SherpaModelCatalog`, `SherpaModelStore`) with real-time PCM conditioning (`AudioPreprocessor`) and hypothesis stabilization (`PartialHypothesisStabilizer`).
+- **On-device neural translation:** Powered by Google ML Kit (`MlKitTranslationRepository`, ~59 languages) with optional self-hosted `LibreTranslateRepository` fallback.
+- **GitHub-First CI Build Pipeline:** All Gradle builds (`./gradlew testGithubDebugUnitTest`, `./gradlew assembleGithubDebug`) run remotely on GitHub Actions (`.github/workflows/build.yml`), which fetches `sherpa-onnx-2.0.1.aar` at build time.
 
-Resources are in `app/src/main/res/`. Unit tests are in `app/src/test/java/com/charles/livecaptionn/`. CI configuration is in `.github/workflows/build.yml`.
+---
 
-## Build, Test, and Development Commands
+## Package Structure (`app/src/main/java/com/charles/livecaptionn/`)
 
-Use the Gradle wrapper with JDK 17.
+- `di/AppContainer.kt` — Manual dependency injection container holding singletons (`SettingsRepository`, `CaptionRuntimeStore`, `SherpaModelStore`, `LocalSherpaSttClient`, `RoutingTranslationRepository`, `TranscriptHistoryStore`, `FileCaptionProfileRepository`, `FileGlossaryRepository`, `UiLocalizationRepository`).
+- `speech/` — Audio capture and speech recognition:
+  - `AudioPreprocessor.kt` — High-pass DC-offset blocker, envelope-tracked Adaptive Gain Control (AGC), and soft-knee peak limiter for 16 kHz mono PCM16.
+  - `PartialHypothesisStabilizer.kt` — Suppresses transducer n-gram/CJK repetition loops, stabilizes trailing partial flicker, and triggers debounced clause-boundary preview translations.
+  - `SherpaModelCatalog.kt` & `SherpaModelStore.kt` — Defines and manages the 8 on-device Sherpa-ONNX models (`en-2023`, `zh-2025`, `bilingual-zh-en`, `ko-2024`, `fr-2023`, `ru-tone`, `yue-paraformer`, `multi-2025`) with HTTP Range resume, disk-space checks, and download cancellation.
+  - `LocalSherpaSttClient.kt` — Manages `OnlineRecognizer` + `OnlineStream`, scales thread count to CPU cores, and exposes `release()` to free native ONNX memory when idle.
+  - `StreamingSttEngine.kt` — Captures 16 kHz PCM from Microphone or System Audio (`AudioPlaybackCaptureConfiguration` via `MediaProjection`) and feeds `StreamingSttSession`.
+  - `SystemAudioEngine.kt` & `AndroidSpeechRecognizerManager.kt` — Remote Whisper batch fallback and Android built-in `SpeechRecognizer` fallback.
+- `translation/` — Translation engines and routing:
+  - `MlKitTranslationRepository.kt` — Bounded LRU of ML Kit `Translator` clients + 300-entry text cache + Cantonese (`yue -> zh`) language tag normalization.
+  - `LibreTranslateRepository.kt` & `LanguageCatalogStore.kt` — Self-hosted LibreTranslate REST client.
+  - `RoutingTranslationRepository.kt` — Dispatches to ML Kit or LibreTranslate based on user settings.
+- `service/` — Foreground service and state transforms:
+  - `CaptionForegroundService.kt` — Orchestrates audio capture, recognition, pre/post glossary application, same-language fast path, clause-boundary early translation, overlay updates, and history persistence.
+  - `ServiceTransforms.kt` — Pure functions tested by `ServiceTransformsTest` (`recordTranscriptResult`, `updateTranscriptTranslation`, `overlayTranscriptText`, `overlayOriginalText`, `overlayDisplayTranscriptText`, `overlayDisplayOriginalText`, `overlayActivePartialText`).
+- `overlay/` — Floating window presentation:
+  - `OverlayController.kt` — `WindowManager` floating subtitle dock with full `OverlayTheme` background + `textRgb` support, screen-bounds clamping across orientation changes, and horizontal center snapping.
+  - `OverlayTextDisplay.kt`, `OverlayTheme.kt`, `OverlayUiState.kt`, `SubtitleCue.kt`.
+- `ui/` — Jetpack Compose UI:
+  - `MainScreen.kt` — 4-tab studio interface (`Live`, `Overlay`, `Models`, `Tools`) + `SherpaModelSheet`.
+  - `OnboardingScreen.kt`, `HistoryScreen.kt`, `FeatureToolsCard.kt`, `TutorialScreen.kt`, `feedback/`, `l10n/`, `theme/Theme.kt`.
 
-- `./gradlew assembleDebug` builds a debug APK.
-- `./gradlew assembleRelease` builds an unsigned release APK.
-- `./gradlew testDebugUnitTest` runs local unit tests for the debug variant.
-- `./gradlew test` runs all local unit tests.
-- `./gradlew connectedAndroidTest` runs instrumentation tests on a connected device or emulator.
-- `./gradlew clean` removes generated build output.
+---
 
-On Windows PowerShell, use `.\gradlew.bat` instead of `./gradlew`.
+## Verification & Testing Guidelines
 
-## Coding Style & Naming Conventions
-
-Write Kotlin using four-space indentation and idiomatic Android/Kotlin naming: `PascalCase` for classes and data classes, `camelCase` for functions and properties, and descriptive test names where practical. Keep Compose UI in `ui/`; do not mix overlay `WindowManager` view code into Compose screens. Dependencies are wired manually through `AppContainer`; do not introduce a DI framework without a deliberate architecture change.
-
-## Testing Guidelines
-
-The project uses JUnit 4 for local unit tests and AndroidX/JUnit/Espresso/Compose tooling for instrumentation tests. Name test files after the class or behavior under test, such as `CaptionRuntimeStoreTest.kt` or `WavEncoderTest.kt`. Add or update tests for repository logic, settings persistence, runtime state, and pure Kotlin utilities when behavior changes.
-
-## Commit & Pull Request Guidelines
-
-Recent commits use concise, imperative summaries, for example `Fix release workflow: add contents write permission` and `Initial commit: LiveCaptionN Android MVP`. Keep commits focused and mention the affected area when useful. Pull requests should include a short description, test results such as `./gradlew testDebugUnitTest`, linked issues when applicable, and screenshots or recordings for visible UI or overlay changes.
-
-## Security & Configuration Tips
-
-Do not commit secrets, keystores, APK/AAB outputs, or machine-specific files. `local.properties` is ignored and may contain private `translate.url` or `stt.url` values; defaults are provided by `app/build.gradle.kts` for local development.
+1. **Unit Tests:** Located in `app/src/test/java/com/charles/livecaptionn/`. Always keep `ServiceTransformsTest`, `OverlayTextDisplayTest`, `MainUiStateFilterTest`, `SherpaEndpointTuningTest`, `CaptionSettingsTest`, `UiStringCatalogTest`, `AudioPreprocessorTest`, `PartialHypothesisStabilizerTest`, and `SherpaModelCatalogTest` passing.
+2. **Model Catalog Verification:** Run `python tools/check_model_links.py` whenever modifying `SherpaModelCatalog.kt`.
+3. **Localization Catalog:** Any new user-facing string looked up via `t["..."]` or `t.format("...", ...)` should be compatible with `UiStringCatalog`.

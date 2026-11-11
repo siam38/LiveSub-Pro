@@ -1,78 +1,97 @@
 # LiveSub Pro
 
-**Live captions and translation for anything playing on your phone.**
+**Real-time offline speech recognition, neural translation, and cinema-grade floating subtitles for Android.**
 
-Modified and redesigned by **[SiAM](https://github.com/siam38)**, based on [LiveCaptionN](https://github.com/chartmann1590/LiveTranscribe-Android) by [Charles Hartmann](https://github.com/chartmann1590).
+Modified and engineered by **[SiAM](https://github.com/siam38)**, based on [LiveCaptionN](https://github.com/chartmann1590/LiveTranscribe-Android) by [Charles Hartmann](https://github.com/chartmann1590).
 
-[![Latest release](https://img.shields.io/github/v/release/siam38/LiveSub-Pro?color=2e4bd7)](https://github.com/siam38/LiveSub-Pro/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/siam38/LiveSub-Pro?color=2546d0)](https://github.com/siam38/LiveSub-Pro/releases/latest)
 [![License](https://img.shields.io/github/license/siam38/LiveSub-Pro?color=6366f1)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Android%2010%2B-1a1330)](#requirements)
+[![Platform](https://img.shields.io/badge/platform-Android%208.0%2B%20(System%20Audio%2010%2B)-131822)](#requirements)
 
-Watch a drama, video or live stream in another language and get real subtitles, floating over the app you're using. Speech is recognized **on your device** with Sherpa-ONNX streaming models, translated on-device with Google ML Kit, and shown in a clean subtitle dock — no account, no subscription, no ads.
+Watch a drama, lecture, video, or live stream in another language and get real-time floating subtitles over any app. Speech is conditioned and recognized **on your device** with [Sherpa-ONNX](https://github.com/k2-fsa/sherpa-onnx) streaming models, translated on-device with Google ML Kit, and presented in a responsive subtitle dock — with no account, no subscription, and no ads.
 
-## Features
+---
 
-- **Real subtitles, not a transcript** — one cue at a time in a bottom dock, bold and readable, in translated-only or bilingual (original + translation) mode
-- **Two audio sources** — microphone, or system audio (videos, dramas, streams) via screen-share capture
-- **On-device speech recognition** — streaming Zipformer models via [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx); words appear as they are spoken, and everything works offline after setup
-- **Models download in-app** — nothing is bundled, so the APK stays lean; download only the languages you use and delete them any time
-- **On-device translation** — Google ML Kit (~59 languages, offline after a one-time model download), or your own LibreTranslate server if you prefer
-- **Made for watching** — drag the subtitle dock anywhere, resize it from the corner, tap for controls; text size, opacity, themes and fonts included
-- **Useful extras** — caption history, saved presets, a glossary for names and terms, and an in-app update checker
-- **No garbage** — no Pro tier, no paywalls, no ads, no subscription screens. Everything is unlocked
+## Key Highlights
 
-## Speech languages
+- **Zero-Blackout Cinema Subtitles** — Displays stabilized cues in a bottom dock with optional bilingual original lines, progressive clause-boundary preview translation for long utterances, and instant pass-through for same-language live captioning.
+- **Signal-Conditioned Audio Capture** — Supports both **System Audio** (`AudioPlaybackCapture` via `MediaProjection` on Android 10+) and **Microphone** capture, processed through a real-time DC-offset filter and envelope-tracked Adaptive Gain Control (AGC) to recover quiet media streams without clipping.
+- **Hypothesis Stabilization & Loop Suppression** — Automatically suppresses transducer repetition loops (consecutive word/bigram/CJK repeats during background music) and stabilizes frame-edge partial jitter.
+- **In-App Model Manager with Resume & Cancel** — Download only the language packs you need from HuggingFace with HTTP Range resumption, free-space verification, live MB progress, download cancellation, and one-tap deletion.
+- **On-Device Neural Translation** — Powered by Google ML Kit (~59 languages, fully offline after a one-time ~30 MB model download, including automatic Cantonese `yue → zh` normalization) or your own self-hosted LibreTranslate server.
+- **Studio Workspace UI** — Organized into 4 focused tabs (**Live**, **Overlay**, **Models**, **Tools**) with an interactive live overlay style preview, named presets, pre/post translation glossary with case-sensitivity, and searchable history with `.txt`, `.srt`, and `.json` export.
 
-Speech models are downloaded in-app from HuggingFace (one download per model):
+---
 
-| Model | Languages | Size |
-|---|---|---|
-| Chinese + English (bilingual) | Chinese, English | ~190 MB |
-| Chinese (2025) | Chinese | ~167 MB |
-| Korean | Korean | ~132 MB |
-| French | French | ~128 MB |
-| Russian | Russian | ~144 MB |
-| Cantonese + Chinese + English | Cantonese, Chinese, English | ~239 MB |
-| Multilingual | Japanese, Arabic, Indonesian, Thai, Vietnamese, Russian | ~339 MB |
+## On-Device Speech Models (Sherpa-ONNX 2.0.1)
 
-For other languages, the built-in Android recognizer and the remote Whisper option remain available from the engine settings.
+Models are downloaded on demand in-app from HuggingFace:
 
-## First run
+| Model ID | Display Name | Supported Languages | Size | Architecture |
+| :--- | :--- | :--- | :--- | :--- |
+| `en-2023` | **English (Fast Streaming)** | English (`en`) | ~73 MB | Streaming Zipformer Transducer (INT8) |
+| `zh-2025` | **Chinese (2025, Chinese only)** | Mandarin Chinese (`zh`) | ~167 MB | Streaming Zipformer Transducer (INT8) |
+| `bilingual-zh-en` | **Chinese + English (bilingual)** | Chinese (`zh`), English (`en`) | ~199 MB | Streaming Zipformer Transducer (INT8) |
+| `ko-2024` | **Korean** | Korean (`ko`) | ~132 MB | Streaming Zipformer Transducer (INT8) |
+| `fr-2023` | **French** | French (`fr`) | ~128 MB | Streaming Zipformer Transducer (INT8) |
+| `ru-tone` | **Russian** | Russian (`ru`) | ~144 MB | Streaming T-One CTC |
+| `yue-paraformer` | **Cantonese + Chinese + English** | Cantonese (`yue`), Chinese (`zh`), English (`en`) | ~239 MB | Streaming Paraformer (INT8) |
+| `multi-2025` | **Multilingual (8-language pack)** | Japanese (`ja`), Arabic (`ar`), Indonesian (`id`), Thai (`th`), Vietnamese (`vi`), Russian (`ru`), Chinese (`zh`), English (`en`) | ~339 MB | Streaming Zipformer + BPE (INT8) |
 
-1. **Permissions** — grant microphone and overlay ("display over other apps"). On Android 13+, if the overlay switch is blocked, the app shows the "Allow restricted settings" fix right on the setup screen.
-2. **Languages** — pick the spoken language and the language to translate into.
-3. **Speech model** — download the model for your language (required once). The translation model downloads by itself the first time you caption.
+> **Compatibility Fallback:** If you already have `bilingual-zh-en` or `multi-2025` installed, LiveSub Pro automatically reuses it when you select English (`en`) or Chinese (`zh`) without forcing an extra download.
 
-Then press **Start**, open your video, and read.
+---
 
-## How it works
+## Architecture & Pipeline
 
 ```
-Audio (mic / system) → Sherpa-ONNX streaming Zipformer → live text
-                     → ML Kit translation → floating subtitle dock
+AudioRecord (Mic / AudioPlaybackCapture 16 kHz Mono PCM16)
+  │
+  ▼
+AudioPreprocessor (High-pass DC-blocker + Adaptive RMS/Peak AGC + Soft Limiter)
+  │
+  ▼
+Sherpa-ONNX 2.0.1 OnlineRecognizer (0.5s phrase pause / 7.0s max segment endpointing)
+  │
+  ▼
+PartialHypothesisStabilizer (N-gram/CJK loop filter + Clause-boundary detector)
+  │
+  ▼
+CaptionForegroundService (Pre/Post Glossary + Same-language fast path + Clause preview)
+  │
+  ├──► MlKitTranslationRepository / LibreTranslateRepository (Bounded LRU + 300-entry cache)
+  ├──► OverlayController (Screen-clamped, center-snapping floating subtitle dock)
+  └──► TranscriptHistoryStore (Local JSON store with .txt / .srt / .json export)
 ```
 
-Recognition runs in small chunks with endpoint detection, so a cue finalizes on a natural pause instead of piling up into a paragraph. Finals skip the translation debounce and a small cache keeps repeated lines instant.
+For a comprehensive engineering breakdown of the system architecture and audit findings, see [AUDIT.md](AUDIT.md).
+
+---
 
 ## Requirements
 
-- Android 10 (API 29) or newer, arm64 device
-- ~200 MB free space per speech model you download
+- **Android 8.0 (API 26)+** for Microphone captioning; **Android 10 (API 29)+** for System Audio capture.
+- **Recommended Hardware:** 64-bit ARM (`arm64-v8a`), 4 GB+ RAM, 4+ CPU cores for on-device Sherpa-ONNX + ML Kit. Devices below 2.5 GB RAM automatically fall back to self-hosted Remote Whisper & LibreTranslate mode.
 
-## Building
+---
 
-The APK is built by GitHub Actions (`.github/workflows/build.yml`) and published to [Releases](https://github.com/siam38/LiveSub-Pro/releases). The workflow fetches the sherpa-onnx runtime AAR at build time — no model or runtime binaries are committed to the repo.
+## Building via GitHub Actions
 
-Locally: `./gradlew :app:assembleGithubDebug` (JDK 17, Android SDK 36).
+All compilation, unit testing, and APK generation run automatically in GitHub Actions (`.github/workflows/build.yml`). On every push or manual `workflow_dispatch`:
+1. Fetches the `sherpa-onnx-2.0.1.aar` runtime, Gradle wrapper jar, and tutorial video.
+2. Runs the full unit test suite (`./gradlew testGithubDebugUnitTest`) and uploads test report artifacts.
+3. Builds and signs the installable debug APK (`./gradlew assembleGithubDebug`) and uploads `LiveSub-Pro-v1.0.<run_number>.apk` as a workflow artifact.
 
-## Credits
+To verify all HuggingFace model URLs in the catalog:
+```bash
+python tools/check_model_links.py
+```
 
-LiveSub Pro is modified and redesigned by **[SiAM](https://github.com/siam38)** — the Sherpa engine and in-app model downloads, the new subtitle dock, the redesigned interface and setup flow, and the removal of the original paywall/ads.
+---
 
-Based on [LiveCaptionN / LiveTranscribe-Android](https://github.com/chartmann1590/LiveTranscribe-Android) by **[Charles Hartmann (chartmann1590)](https://github.com/chartmann1590)**. Thank you for open-sourcing the original app.
+## Credits & License
 
-Speech models come from the [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) project (k2-fsa) and its model contributors on HuggingFace.
-
-## License
-
-MIT — see [LICENSE](LICENSE). Original copyright: [Charles Hartmann (chartmann1590)](https://github.com/chartmann1590).
+- Engineered and redesigned by **[SiAM](https://github.com/siam38)**.
+- Based on [LiveCaptionN / LiveTranscribe-Android](https://github.com/chartmann1590/LiveTranscribe-Android) by **[Charles Hartmann (chartmann1590)](https://github.com/chartmann1590)**.
+- Speech recognition runtime and models by [k2-fsa / sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx).
+- Licensed under the [MIT License](LICENSE).
