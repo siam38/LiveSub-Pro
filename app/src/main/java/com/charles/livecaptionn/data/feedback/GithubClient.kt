@@ -1,5 +1,6 @@
 package com.charles.livecaptionn.data.feedback
 
+import com.charles.livecaptionn.BuildConfig
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import okhttp3.OkHttpClient
@@ -25,7 +26,11 @@ object GithubClient {
     private val loggingInterceptor = HttpLoggingInterceptor { message ->
         android.util.Log.d("GithubClient", message)
     }.apply {
-        level = HttpLoggingInterceptor.Level.BODY
+        level = if (BuildConfig.DEBUG) {
+            HttpLoggingInterceptor.Level.BODY
+        } else {
+            HttpLoggingInterceptor.Level.NONE
+        }
     }
 
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()

@@ -21,27 +21,27 @@ import kotlin.coroutines.resumeWithException
  * is fully offline — no LibreTranslate server required.
  *
  * Supported languages are whatever `TranslateLanguage.getAllLanguages()`
- * exposes — at the time of writing roughly 59 codes (`en`, `vi`, `es`, `fr`,
- * `de`, `ja`, `ko`, `zh`, etc.).
- *
- * Return-value contract:
- *   - Identity (source == target) or blank input → original text.
- *   - Unsupported pair → original text (graceful degradation so captions
- *     keep flowing; the user can switch backend in settings).
- *   - Runtime failure (download stall, model load error, etc.) → empty
- *     string. The service treats an empty result as "don't overwrite the
- *     last good translation".
+ * exposes — roughly 59 codes (`en`, `vi`, `es`, `fr`, `de`, `ja`, `ko`, `zh`, etc.).
+ * Cantonese (`yue`) transcripts are normalized to `zh` so ML Kit's Chinese
+ * model translates them seamlessly.
  */
 class MlKitTranslationRepository : TranslationRepository {
 
-    // One Translator instance per source|target pair, cached for the
-    // lifetime of the process so downloads and model loads only happen once.
-    private val translators = mutableMapOf<String, Translator>()
+    // Bounded LRU of Translator instances so switching across many language pairs
+    // closes old native translators instead of accumulating native heap memory.
+    private val translators = object : LinkedHashMap<String, Translator>(8, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Translator>): Boolean {
+            if (size > MAX_ACTIVE_TRANSLATORS) {
+                try { eldest.value.close() } catch (_: Throwable) {}
+                return true
+            }
+            return false
+        }
+    }
 
-    // Live partials repeat the same text many times a second. An exact-match
-    // LRU turns those repeats into map hits instead of full model runs.
-    private val cache = object : LinkedHashMap<String, String>(128, 0.75f, true) {
-        override fun removeEldestEntry(eldest: Map.Entry<String, String>) = size > 200
+    // Live partials and repeated phrases hit an exact-match LRU cache.
+    private val cache = object : LinkedHashMap<String, String>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: Map.Entry<String, String>) = size > 300
     }
 
     override suspend fun translate(
@@ -54,8 +54,8 @@ class MlKitTranslationRepository : TranslationRepository {
         if (clean.isEmpty()) return clean
         if (targetCode.isBlank()) return clean
 
-        val src = TranslateLanguage.fromLanguageTag(sourceCode.lowercase())
-        val dst = TranslateLanguage.fromLanguageTag(targetCode.lowercase())
+        val src = resolveMlKitLang(sourceCode)
+        val dst = resolveMlKitLang(targetCode)
         if (src == null || dst == null) {
             Log.w(TAG, "ML Kit does not support pair $sourceCode → $targetCode; passing text through.")
             return clean
@@ -79,8 +79,8 @@ class MlKitTranslationRepository : TranslationRepository {
     }
 
     override suspend fun prewarm(sourceCode: String, targetCode: String) {
-        val src = TranslateLanguage.fromLanguageTag(sourceCode.lowercase()) ?: return
-        val dst = TranslateLanguage.fromLanguageTag(targetCode.lowercase()) ?: return
+        val src = resolveMlKitLang(sourceCode) ?: return
+        val dst = resolveMlKitLang(targetCode) ?: return
         if (src == dst) return
         try {
             val translator = translatorFor(src, dst)
@@ -93,13 +93,11 @@ class MlKitTranslationRepository : TranslationRepository {
 
     /**
      * Ensures the source→target model is downloaded, propagating failures
-     * (unlike [prewarm], which swallows them for the caption service). Used by
-     * UI localization so a stalled model download can bail to the server
-     * fallback instead of spinning forever.
+     * (unlike [prewarm], which swallows them for the caption service).
      */
     suspend fun requireModel(sourceCode: String, targetCode: String) {
-        val src = TranslateLanguage.fromLanguageTag(sourceCode.lowercase()) ?: return
-        val dst = TranslateLanguage.fromLanguageTag(targetCode.lowercase()) ?: return
+        val src = resolveMlKitLang(sourceCode) ?: return
+        val dst = resolveMlKitLang(targetCode) ?: return
         if (src == dst) return
         val translator = translatorFor(src, dst)
         ensureModelDownloaded(translator)
@@ -121,9 +119,6 @@ class MlKitTranslationRepository : TranslationRepository {
 
     private suspend fun ensureModelDownloaded(translator: Translator) = withContext(Dispatchers.IO) {
         suspendCancellableCoroutine<Unit> { cont ->
-            // DownloadConditions defaults allow cellular — we don't force
-            // Wi-Fi so the first-use download actually completes when the
-            // user isn't on Wi-Fi.
             val conditions = DownloadConditions.Builder().build()
             translator.downloadModelIfNeeded(conditions)
                 .addOnSuccessListener { if (cont.isActive) cont.resume(Unit) }
@@ -151,5 +146,16 @@ class MlKitTranslationRepository : TranslationRepository {
 
     companion object {
         private const val TAG = "MlKitTranslator"
+        private const val MAX_ACTIVE_TRANSLATORS = 4
+
+        internal fun resolveMlKitLang(code: String): String? {
+            val normalized = when (val primary = code.trim().lowercase().substringBefore('-').substringBefore('_')) {
+                "yue" -> "zh"
+                "iw" -> "he"
+                "in" -> "id"
+                else -> primary
+            }
+            return TranslateLanguage.fromLanguageTag(normalized)
+        }
     }
 }

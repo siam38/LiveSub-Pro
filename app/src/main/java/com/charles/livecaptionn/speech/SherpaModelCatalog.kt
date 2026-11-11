@@ -22,7 +22,9 @@ data class SherpaModel(
     val hfRepo: String,
     val files: List<SherpaFileSpec>,
     /** Optional sentencepiece model for cjkchar+bpe models. */
-    val bpeFile: String? = null
+    val bpeFile: String? = null,
+    /** Short user-facing description of the model's strengths. */
+    val description: String = ""
 ) {
     val totalSizeBytes: Long get() = files.sumOf { it.sizeBytes }
     val totalSizeMb: Int get() = (totalSizeBytes / 1_000_000).toInt()
@@ -34,6 +36,22 @@ data class SherpaModel(
 // HuggingFace. Languages without a streaming model (de, es, pt, it, hi, tr)
 // are not listed — the remote/built-in engine covers those.
 object SherpaModelCatalog {
+
+    val ENGLISH_2023 = SherpaModel(
+        id = "en-2023",
+        displayName = "English (Fast Streaming)",
+        languages = setOf("en"),
+        type = SherpaModelType.TRANSDUCER,
+        modelType = "",
+        hfRepo = "csukuangfj/sherpa-onnx-streaming-zipformer-en-2023-06-26",
+        files = listOf(
+            SherpaFileSpec("encoder-epoch-99-avg-1-chunk-16-left-128.int8.onnx", 71_083_163),
+            SherpaFileSpec("decoder-epoch-99-avg-1-chunk-16-left-128.onnx", 2_092_621),
+            SherpaFileSpec("joiner-epoch-99-avg-1-chunk-16-left-128.int8.onnx", 259_335),
+            SherpaFileSpec("tokens.txt", 5_048)
+        ),
+        description = "Compact dedicated English streaming Zipformer with low memory and fast response."
+    )
 
     val BILINGUAL_ZH_EN = SherpaModel(
         id = "bilingual-zh-en",
@@ -47,7 +65,8 @@ object SherpaModelCatalog {
             SherpaFileSpec("decoder-epoch-99-avg-1.onnx", 13_876_452),
             SherpaFileSpec("joiner-epoch-99-avg-1.int8.onnx", 3_228_404),
             SherpaFileSpec("tokens.txt", 56_317)
-        )
+        ),
+        description = "Bilingual Mandarin Chinese and English model; ideal for mixed-language streams."
     )
 
     val CHINESE_2025 = SherpaModel(
@@ -62,7 +81,8 @@ object SherpaModelCatalog {
             SherpaFileSpec("decoder.onnx", 5_165_083),
             SherpaFileSpec("joiner.int8.onnx", 1_033_416),
             SherpaFileSpec("tokens.txt", 20_628)
-        )
+        ),
+        description = "High-accuracy 2025 Mandarin Zipformer model optimized for pure Chinese media."
     )
 
     val KOREAN = SherpaModel(
@@ -77,7 +97,8 @@ object SherpaModelCatalog {
             SherpaFileSpec("decoder-epoch-99-avg-1.int8.onnx", 2_844_692),
             SherpaFileSpec("joiner-epoch-99-avg-1.int8.onnx", 2_581_421),
             SherpaFileSpec("tokens.txt", 60_246)
-        )
+        ),
+        description = "Dedicated Korean streaming Zipformer tuned for broadcasts, dramas, and talks."
     )
 
     val FRENCH = SherpaModel(
@@ -92,7 +113,8 @@ object SherpaModelCatalog {
             SherpaFileSpec("decoder-epoch-29-avg-9-with-averaged-model.int8.onnx", 1_307_157),
             SherpaFileSpec("joiner-epoch-29-avg-9-with-averaged-model.int8.onnx", 259_572),
             SherpaFileSpec("tokens.txt", 4_819)
-        )
+        ),
+        description = "Dedicated French streaming model for videos, podcasts, and conversation."
     )
 
     val MULTILINGUAL = SherpaModel(
@@ -109,7 +131,8 @@ object SherpaModelCatalog {
             SherpaFileSpec("tokens.txt", 195_244),
             SherpaFileSpec("bpe.model", 476_049)
         ),
-        bpeFile = "bpe.model"
+        bpeFile = "bpe.model",
+        description = "8-language streaming pack covering Japanese, Arabic, Indonesian, Thai, Vietnamese, Russian, Chinese, and English."
     )
 
     val RUSSIAN_TONE = SherpaModel(
@@ -122,7 +145,8 @@ object SherpaModelCatalog {
         files = listOf(
             SherpaFileSpec("model.onnx", 144_193_702),
             SherpaFileSpec("tokens.txt", 202)
-        )
+        ),
+        description = "Dedicated T-One CTC streaming model for Russian."
     )
 
     val CANTONESE = SherpaModel(
@@ -136,11 +160,12 @@ object SherpaModelCatalog {
             SherpaFileSpec("encoder.int8.onnx", 166_362_800),
             SherpaFileSpec("decoder.int8.onnx", 72_062_549),
             SherpaFileSpec("tokens.txt", 81_289)
-        )
+        ),
+        description = "Trilingual Paraformer model supporting Cantonese, Mandarin, and English."
     )
 
     val ALL: List<SherpaModel> = listOf(
-        BILINGUAL_ZH_EN, CHINESE_2025, KOREAN, FRENCH, RUSSIAN_TONE, CANTONESE, MULTILINGUAL
+        ENGLISH_2023, BILINGUAL_ZH_EN, CHINESE_2025, KOREAN, FRENCH, RUSSIAN_TONE, CANTONESE, MULTILINGUAL
     )
 
     fun byId(id: String): SherpaModel? = ALL.firstOrNull { it.id == id }

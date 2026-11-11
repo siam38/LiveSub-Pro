@@ -21,7 +21,7 @@ internal const val MAX_TRANSCRIPT_LINES = 30
  *
  * @param lines        Current transcript lines (scroll-back buffer).
  * @param originalText The latest recognized text from STT.
- * @param isFinal      Whether this result is Vosk's finalized segment.
+ * @param isFinal      Whether this result is a finalized segment.
  * @param newLineId    Id to assign if this text starts/becomes a new version.
  * @return The updated line list, trimmed to [MAX_TRANSCRIPT_LINES].
  */
@@ -98,3 +98,36 @@ internal fun overlayTranscriptText(runtime: CaptionRuntimeState): String {
  */
 internal fun overlayOriginalText(runtime: CaptionRuntimeState): String =
     overlayCueLine(runtime)?.originalText?.trim()?.replace(Regex("\\s+"), " ") ?: ""
+
+/**
+ * Returns the active in-progress partial utterance (not yet finalized/translated), if any.
+ */
+internal fun overlayActivePartialText(runtime: CaptionRuntimeState): String {
+    val last = runtime.transcriptLines.lastOrNull() ?: return runtime.originalText.trim()
+    if (!last.isFinal && last.translatedText.isBlank()) {
+        return last.originalText.trim().replace(Regex("\\s+"), " ")
+    }
+    return ""
+}
+
+/**
+ * Effective subtitle cue for live overlay presentation: prefers the steady finalized cue
+ * from [overlayTranscriptText], and falls back to [CaptionRuntimeState.previewTranslatedText]
+ * when clause-level early translation is available before the first finalized cue.
+ */
+internal fun overlayDisplayTranscriptText(runtime: CaptionRuntimeState): String {
+    val primary = overlayTranscriptText(runtime)
+    if (primary.isNotBlank()) return primary
+    return runtime.previewTranslatedText.trim().replace(Regex("\\s+"), " ")
+}
+
+/**
+ * Effective original-language subtitle line for live overlay presentation: returns the
+ * original text paired with the current cue, or the live partial during the first utterance
+ * before any cue has been finalized.
+ */
+internal fun overlayDisplayOriginalText(runtime: CaptionRuntimeState): String {
+    val paired = overlayOriginalText(runtime)
+    if (paired.isNotBlank()) return paired
+    return overlayActivePartialText(runtime)
+}

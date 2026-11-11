@@ -47,6 +47,23 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
         }
     }
 
+    /**
+     * Releases the native ONNX Runtime recognizer when captioning stops so ~200 MB
+     * of native heap buffers are not retained while the app sits idle.
+     */
+    suspend fun release() {
+        recognizerMutex.withLock {
+            try {
+                recognizer?.release()
+            } catch (t: Throwable) {
+                Log.w(TAG, "Failed to release Sherpa recognizer", t)
+            } finally {
+                recognizer = null
+                recognizerModelId = null
+            }
+        }
+    }
+
     private suspend fun recognizerFor(model: SherpaModel): OnlineRecognizer? {
         if (recognizer != null && recognizerModelId == model.id) return recognizer
         return recognizerMutex.withLock {
@@ -54,6 +71,7 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
             withContext(Dispatchers.IO) {
                 try {
                     val dir = store.modelDir(model)
+                    val threads = optimalThreadCount()
                     fun path(prefix: String): String =
                         File(dir, model.files.first { it.name.startsWith(prefix) }.name).absolutePath
                     val modelConfig = when (model.type) {
@@ -64,7 +82,7 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
                                 joiner = path("joiner")
                             ),
                             tokens = File(dir, "tokens.txt").absolutePath,
-                            numThreads = 2,
+                            numThreads = threads,
                             modelType = model.modelType,
                             modelingUnit = if (model.bpeFile != null) "cjkchar+bpe" else "",
                             bpeVocab = model.bpeFile?.let { File(dir, it).absolutePath } ?: ""
@@ -75,7 +93,7 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
                                 decoder = path("decoder")
                             ),
                             tokens = File(dir, "tokens.txt").absolutePath,
-                            numThreads = 2,
+                            numThreads = threads,
                             modelType = model.modelType
                         )
                         SherpaModelType.TONE_CTC -> OnlineModelConfig(
@@ -83,7 +101,7 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
                                 model = File(dir, "model.onnx").absolutePath
                             ),
                             tokens = File(dir, "tokens.txt").absolutePath,
-                            numThreads = 2,
+                            numThreads = threads,
                             modelType = model.modelType
                         )
                     }
@@ -102,6 +120,7 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
                     OnlineRecognizer(config = config).also {
                         recognizer = it
                         recognizerModelId = model.id
+                        Log.i(TAG, "Loaded Sherpa model '${model.id}' with $threads threads")
                     }
                 } catch (t: Throwable) {
                     Log.w(TAG, "Failed to create Sherpa recognizer for ${model.id}", t)
@@ -113,6 +132,11 @@ class LocalSherpaSttClient(private val store: SherpaModelStore) : StreamingSttCl
 
     companion object {
         private const val TAG = "LocalSherpaSttClient"
+
+        fun optimalThreadCount(): Int {
+            val cores = Runtime.getRuntime().availableProcessors()
+            return (cores / 2).coerceIn(2, 4)
+        }
     }
 }
 
@@ -124,28 +148,33 @@ class SherpaStreamingSession internal constructor(
 ) : StreamingSttSession {
 
     private val stream: OnlineStream = recognizer.createStream()
+    private val audioPreprocessor = AudioPreprocessor()
+    private val stabilizer = PartialHypothesisStabilizer()
     @Volatile private var closed = false
 
     override fun feed(pcm: ByteArray, length: Int): SttFeedResult {
         if (closed) return SttFeedResult("", accepted = false)
         return try {
             val count = (length.coerceAtMost(pcm.size)) / 2
-            val samples = FloatArray(count)
+            val shorts = ShortArray(count)
             var j = 0
             for (i in 0 until count) {
                 val low = pcm[j].toInt() and 0xFF
                 val high = pcm[j + 1].toInt() shl 8
-                samples[i] = (high or low) / 32768f
+                shorts[i] = (high or low).toShort()
                 j += 2
             }
-            stream.acceptWaveform(samples, 16_000)
+            val conditioned = audioPreprocessor.processPcm16(shorts, count)
+            stream.acceptWaveform(conditioned, 16_000)
             while (recognizer.isReady(stream)) recognizer.decode(stream)
-            val text = recognizer.getResult(stream).text.trim()
+            val rawText = recognizer.getResult(stream).text.trim()
             if (recognizer.isEndpoint(stream)) {
                 recognizer.reset(stream)
-                SttFeedResult(text, accepted = true)
+                val cleaned = stabilizer.cleanFinal(rawText)
+                SttFeedResult(cleaned, accepted = true)
             } else {
-                SttFeedResult(text, accepted = false)
+                val stable = stabilizer.stabilizePartial(rawText)
+                SttFeedResult(stable, accepted = false)
             }
         } catch (t: Throwable) {
             Log.w("SherpaStreamingSession", "feed failed", t)
@@ -158,7 +187,7 @@ class SherpaStreamingSession internal constructor(
         return try {
             stream.inputFinished()
             while (recognizer.isReady(stream)) recognizer.decode(stream)
-            recognizer.getResult(stream).text.trim()
+            stabilizer.cleanFinal(recognizer.getResult(stream).text.trim())
         } catch (t: Throwable) {
             Log.w("SherpaStreamingSession", "finish failed", t)
             ""

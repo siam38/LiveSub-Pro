@@ -2,6 +2,9 @@ package com.charles.livecaptionn
 
 import com.charles.livecaptionn.service.CaptionRuntimeLine
 import com.charles.livecaptionn.service.CaptionRuntimeState
+import com.charles.livecaptionn.service.overlayActivePartialText
+import com.charles.livecaptionn.service.overlayDisplayOriginalText
+import com.charles.livecaptionn.service.overlayDisplayTranscriptText
 import com.charles.livecaptionn.service.overlayOriginalText
 import com.charles.livecaptionn.service.overlayTranscriptText
 import com.charles.livecaptionn.service.recordTranscriptResult
@@ -256,5 +259,31 @@ class ServiceTransformsTest {
             )
         )
         assertEquals("", overlayOriginalText(state))
+    }
+
+    // ── Live preview helpers (zero-blackout first utterance) ──
+
+    @Test
+    fun overlayDisplayOriginalText_surfacesLivePartialBeforeFirstCue() {
+        val state = CaptionRuntimeState(
+            originalText = "Good morning everyone",
+            transcriptLines = listOf(
+                CaptionRuntimeLine(id = 1L, originalText = "Good morning everyone", isFinal = false)
+            )
+        )
+        assertEquals("Good morning everyone", overlayDisplayOriginalText(state))
+        assertEquals("Good morning everyone", overlayActivePartialText(state))
+    }
+
+    @Test
+    fun overlayDisplayTranscriptText_usesClausePreviewWhenNoFinalCueYet() {
+        val state = CaptionRuntimeState(
+            originalText = "Good morning everyone welcome to",
+            previewTranslatedText = "Chào buổi sáng mọi người",
+            transcriptLines = listOf(
+                CaptionRuntimeLine(id = 1L, originalText = "Good morning everyone welcome to", isFinal = false)
+            )
+        )
+        assertEquals("Chào buổi sáng mọi người", overlayDisplayTranscriptText(state))
     }
 }

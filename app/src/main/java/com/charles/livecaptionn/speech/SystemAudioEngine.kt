@@ -94,7 +94,15 @@ class SystemAudioEngine(
         // Android 14+ requires a registered callback before capture starts.
         try {
             projection.registerCallback(
-                object : MediaProjection.Callback() {},
+                object : MediaProjection.Callback() {
+                    override fun onStop() {
+                        if (running) {
+                            onSttError("System audio capture ended. Tap Start to resume.")
+                            statusMutable.value = RecognitionStatus.ERROR
+                            stop()
+                        }
+                    }
+                },
                 android.os.Handler(android.os.Looper.getMainLooper())
             )
         } catch (_: Throwable) {}

@@ -53,6 +53,7 @@ class StreamingSttEngine(
     private var audioRecord: AudioRecord? = null
     private var captureJob: Job? = null
     private var session: StreamingSttSession? = null
+    private var projectionCallback: MediaProjection.Callback? = null
 
     @Volatile private var running = false
     @Volatile private var paused = false
@@ -78,6 +79,10 @@ class StreamingSttEngine(
         session?.close()
         session = null
         if (audioSource == AudioSource.SYSTEM) {
+            try {
+                projectionCallback?.let { cb -> mediaProjection?.unregisterCallback(cb) }
+            } catch (_: Throwable) {}
+            projectionCallback = null
             try { mediaProjection?.stop() } catch (_: Throwable) {}
         }
         statusMutable.value = RecognitionStatus.IDLE
@@ -110,9 +115,20 @@ class StreamingSttEngine(
         // Android 14+ requires a registered callback on the projection
         // before any capture starts, or AudioRecord never records.
         if (audioSource == AudioSource.SYSTEM && mediaProjection != null) {
+            val cb = object : MediaProjection.Callback() {
+                override fun onStop() {
+                    if (running) {
+                        Log.w(TAG, "MediaProjection stopped externally")
+                        onError("System audio capture ended. Tap Start to resume.")
+                        statusMutable.value = RecognitionStatus.ERROR
+                        stop()
+                    }
+                }
+            }
+            projectionCallback = cb
             try {
                 mediaProjection.registerCallback(
-                    object : MediaProjection.Callback() {},
+                    cb,
                     Handler(Looper.getMainLooper())
                 )
             } catch (_: Throwable) {}
