@@ -55,6 +55,7 @@ class OverlayController(
     private var liveDot: View? = null
     private var langChip: TextView? = null
     private var statusText: TextView? = null
+    private var statsText: TextView? = null
     private var originalText: TextView? = null
     private var translatedText: TextView? = null
     private var pauseButton: ImageButton? = null
@@ -188,6 +189,22 @@ class OverlayController(
         controlsRow = controls
         box.addView(controls)
 
+        // Stats line: sits right under the controls bar, shown only while
+        // the controls are visible, small enough to never stretch the box.
+        statsText = TextView(context).apply {
+            setTextColor(Color.argb(185, 235, 240, 255))
+            textSize = 10f
+            gravity = Gravity.CENTER
+            maxLines = 1
+            ellipsize = TextUtils.TruncateAt.END
+            visibility = View.GONE
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { setMargins(0, 0, 0, dp(6)) }
+        }
+        box.addView(statsText)
+
         originalText = TextView(context).apply {
             setTextColor(Color.argb(200, 255, 255, 255))
             gravity = Gravity.CENTER
@@ -272,7 +289,7 @@ class OverlayController(
             display.translatedText, display.showOriginal, display.originalText,
             display.livePartialText, ui.status.name, ui.statusDetail.orEmpty(),
             ui.minimized, ui.textSizeSp, ui.opacity, ui.themeId, ui.fontId,
-            ui.sourceCode, ui.targetCode
+            ui.sourceCode, ui.targetCode, ui.statsText
         ).joinToString("|")
         if (renderKey == lastRenderKey) return
         lastRenderKey = renderKey
@@ -317,6 +334,11 @@ class OverlayController(
                 append(detail)
             }
         }
+        if (statsText?.text?.toString() != ui.statsText) {
+            statsText?.text = ui.statsText
+        }
+        statsText?.visibility =
+            if (controlsVisible && ui.statsText.isNotBlank()) View.VISIBLE else View.GONE
         pauseButton?.contentDescription = if (ui.status == RecognitionStatus.PAUSED) s["Resume captioning"] else s["Pause captioning"]
         pauseButton?.setImageResource(
             if (ui.status == RecognitionStatus.PAUSED) android.R.drawable.ic_media_play
@@ -372,6 +394,8 @@ class OverlayController(
     private fun setControlsVisible(visible: Boolean) {
         controlsVisible = visible
         controlsRow?.visibility = if (visible) View.VISIBLE else View.GONE
+        statsText?.visibility =
+            if (visible && !statsText?.text.isNullOrBlank()) View.VISIBLE else View.GONE
         resizeHandle?.visibility = if (visible) View.VISIBLE else View.GONE
         mainHandler.removeCallbacks(hideControlsRunnable)
         if (visible) scheduleControlsAutoHide()
@@ -394,6 +418,7 @@ class OverlayController(
         liveDot = null
         langChip = null
         statusText = null
+        statsText = null
         originalText = null
         translatedText = null
         pauseButton = null

@@ -12,6 +12,7 @@ import android.media.projection.MediaProjection
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.charles.livecaptionn.settings.AudioSource
@@ -194,6 +195,7 @@ class StreamingSttEngine(
         var silentChunkStreak = 0
         var lastEmittedPartial = ""
         var sawAnyAudioEver = false
+        var lastSpeechAtMs = 0L
 
         while (scope.isActive && running) {
             if (paused) {
@@ -236,6 +238,7 @@ class StreamingSttEngine(
             } else {
                 silentChunkStreak = 0
                 sawAnyAudioEver = true
+                lastSpeechAtMs = SystemClock.elapsedRealtime()
                 onError(null)
             }
 
@@ -245,7 +248,13 @@ class StreamingSttEngine(
             if (result.accepted) {
                 // Vosk hit a silence/segment boundary and emitted a finalized chunk.
                 if (result.text.isNotBlank()) {
-                    onResult(SpeechResult(result.text, isFinal = true))
+                    onResult(
+                        SpeechResult(
+                            result.text,
+                            isFinal = true,
+                            segmentEndMs = lastSpeechAtMs.takeIf { it > 0 }
+                        )
+                    )
                     lastEmittedPartial = ""
                 }
             } else if (result.text.isNotBlank() && result.text != lastEmittedPartial) {

@@ -19,7 +19,13 @@ data class CaptionRuntimeState(
     val previewTranslatedText: String = "",
     val transcriptLines: List<CaptionRuntimeLine> = emptyList(),
     val status: RecognitionStatus = RecognitionStatus.IDLE,
-    val lastTranslationMs: Long? = null,
+    // Overall latency of the last final cue: from the end of the spoken
+    // segment to the translated subtitle being ready to show (endpoint
+    // wait + final transcription + translation + hand-off).
+    val lastLatencyMs: Long? = null,
+    val appRamMb: Long = 0,
+    val deviceFreeMb: Long = 0,
+    val appCpuPct: Int = -1,
     val running: Boolean = false,
     val paused: Boolean = false,
     val lastError: String? = null

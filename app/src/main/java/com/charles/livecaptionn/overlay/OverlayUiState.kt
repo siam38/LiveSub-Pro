@@ -16,6 +16,8 @@ data class OverlayUiState(
     val minimized: Boolean = false,
     val sourceCode: String = "zh",
     val targetCode: String = "en",
+    // Small stats line (latency · CPU · RAM), shown inside the box with the controls.
+    val statsText: String = "",
     val themeId: String = OverlayThemeCatalog.FREE_THEME_ID,
     val fontId: String = OverlayFontCatalog.FREE_FONT_ID
 )

@@ -964,7 +964,7 @@ private fun DashboardCard(ui: MainUiState) {
                 )
                 DashboardTile(
                     label = "Subtitle latency",
-                    value = ui.runtime.lastTranslationMs?.let { "$it ms" } ?: "—",
+                    value = ui.runtime.lastLatencyMs?.let { "$it ms" } ?: "—",
                     modifier = Modifier.weight(1f)
                 )
             }

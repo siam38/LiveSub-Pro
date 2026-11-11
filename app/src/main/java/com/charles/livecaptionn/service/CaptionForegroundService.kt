@@ -212,7 +212,7 @@ class CaptionForegroundService : Service() {
                     }
                     val effectiveId = app.container.runtimeStore.state.value
                         .transcriptLines.lastOrNull()?.id ?: candidateId
-                    queueTranslation(transcript, effectiveId, result.isFinal)
+                    queueTranslation(transcript, effectiveId, result.isFinal, result.segmentEndMs)
                 }
             }
 
@@ -269,6 +269,33 @@ class CaptionForegroundService : Service() {
 
             showOverlay()
             observeOverlayUpdates()
+            startMetricsLoop()
+        }
+    }
+
+    // Publishes app RAM / CPU and free device RAM into the runtime state
+    // every 2s, so the dashboard and the overlay stats line stay live even
+    // when no new subtitle arrives.
+    private fun startMetricsLoop() {
+        serviceScope.launch {
+            var prevTicks = AppMetrics.readCpuTicks()
+            var prevTimeMs = SystemClock.elapsedRealtime()
+            while (captionSessionActive.get()) {
+                val ramMb = AppMetrics.appRamMb()
+                val freeMb = AppMetrics.deviceFreeMb(this@CaptionForegroundService)
+                app.container.runtimeStore.update {
+                    it.copy(appRamMb = ramMb, deviceFreeMb = freeMb)
+                }
+                kotlinx.coroutines.delay(2000)
+                val nowTicks = AppMetrics.readCpuTicks()
+                val nowTimeMs = SystemClock.elapsedRealtime()
+                val pct = AppMetrics.cpuPercent(prevTicks, prevTimeMs, nowTicks, nowTimeMs)
+                if (pct >= 0) {
+                    app.container.runtimeStore.update { it.copy(appCpuPct = pct) }
+                }
+                prevTicks = nowTicks
+                prevTimeMs = nowTimeMs
+            }
         }
     }
 
@@ -312,19 +339,43 @@ class CaptionForegroundService : Service() {
         minimized = settings.overlayMinimized,
         sourceCode = settings.sourceLanguageCode,
         targetCode = settings.targetLanguageCode,
+        statsText = overlayStatsText(runtime),
         themeId = if (hasPro) settings.overlayThemeId else OverlayThemeCatalog.FREE_THEME_ID,
         fontId = if (hasPro) settings.overlayFontId else OverlayFontCatalog.FREE_FONT_ID
     )
 
+    private fun overlayStatsText(runtime: CaptionRuntimeState): String {
+        val parts = mutableListOf<String>()
+        runtime.lastLatencyMs?.let { parts.add("Latency $it ms") }
+        if (runtime.appCpuPct >= 0) parts.add("CPU ${runtime.appCpuPct}%")
+        if (runtime.appRamMb > 0) parts.add("RAM ${runtime.appRamMb} MB")
+        if (runtime.deviceFreeMb > 0) {
+            parts.add("Free " + String.format("%.1f GB", runtime.deviceFreeMb / 1024f))
+        }
+        return parts.joinToString(" · ")
+    }
+
     @Volatile private var lastQueuedKey: String? = null
 
-    private fun queueTranslation(text: String, lineId: Long, isFinal: Boolean = false) {
+    private fun queueTranslation(
+        text: String,
+        lineId: Long,
+        isFinal: Boolean = false,
+        segmentEndMs: Long? = null
+    ) {
         if (isFinal) {
             clauseStabilizer.resetUtterance()
             val key = "$lineId|$text|final"
             if (key == lastQueuedKey) return
             lastQueuedKey = key
-            val request = TranslationRequest(text = text, lineId = lineId, isFinal = true, saveHistory = true)
+            val request = TranslationRequest(
+                text = text,
+                lineId = lineId,
+                isFinal = true,
+                saveHistory = true,
+                segmentEndMs = segmentEndMs,
+                receivedAtMs = SystemClock.elapsedRealtime()
+            )
 
             persistenceScope.launch { translateSnapshot(request) }
         } else {
@@ -376,12 +427,26 @@ class CaptionForegroundService : Service() {
         val translateMs = SystemClock.elapsedRealtime() - translateStartMs
         val translatedWithGlossary = applyGlossary(rawTranslated, glossaryEntries)
 
+        // Overall latency for a final cue, measured to the moment its
+        // translation is ready to show (the overlay renders it straight
+        // from this state update). With a known segment end it covers the
+        // endpoint wait + final transcription + translation; without one
+        // it covers everything from the transcription result arriving.
+        val shownAtMs = SystemClock.elapsedRealtime()
+        val overallMs = when {
+            !request.isFinal -> null
+            request.segmentEndMs != null && request.segmentEndMs in 1..shownAtMs ->
+                shownAtMs - request.segmentEndMs
+            request.receivedAtMs > 0 -> shownAtMs - request.receivedAtMs
+            else -> translateMs
+        }
+
         if (captionSessionActive.get()) {
             app.container.runtimeStore.update { state ->
                 val current = state.transcriptLines.any { line -> line.id == request.lineId }
                 if (request.isFinal || isSameLanguage) {
                     state.copy(
-                        lastTranslationMs = if (request.isFinal) translateMs else state.lastTranslationMs,
+                        lastLatencyMs = overallMs ?: state.lastLatencyMs,
                         translatedText = if (current) translatedWithGlossary else state.translatedText,
                         previewTranslatedText = if (request.isFinal) "" else translatedWithGlossary,
                         transcriptLines = updateTranscriptTranslation(
@@ -419,7 +484,9 @@ class CaptionForegroundService : Service() {
         val text: String,
         val lineId: Long,
         val isFinal: Boolean,
-        val saveHistory: Boolean
+        val saveHistory: Boolean,
+        val segmentEndMs: Long? = null,
+        val receivedAtMs: Long = 0
     )
 
     private fun showOverlay() {

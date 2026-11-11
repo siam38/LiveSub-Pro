@@ -20,7 +20,7 @@ Watch a drama, lecture, video, or live stream in another language and get real-t
 - **In-App Model Manager with Resume & Cancel** — Download only the language packs you need from HuggingFace with HTTP Range resumption, free-space verification, live MB progress, download cancellation, and one-tap deletion.
 - **On-Device Neural Translation** — Powered by Google ML Kit (~59 languages, fully offline after a one-time ~30 MB model download, including automatic Cantonese `yue → zh` normalization) or your own self-hosted LibreTranslate server.
 - **Studio Workspace UI** — Organized into 4 focused tabs (**Live**, **Overlay**, **Models**, **Tools**) with an interactive live overlay style preview, named presets, pre/post translation glossary with case-sensitivity, and searchable history with `.txt`, `.srt`, and `.json` export.
-- **Properly Fast** — A spoken line is transcribed and translated in roughly **50–80 ms or less** on a mid-range phone, fully on-device. The built-in dashboard shows the live latency number while you caption.
+- **Properly Fast** — Transcription and translation run fully on-device, so a finished line is translated and on screen in well under a second. The latency number in the dashboard (and in the floating box when you tap it) is the honest end-to-end one: from the end of the spoken line to the translated subtitle showing.
 
 ---
 
@@ -29,7 +29,7 @@ Watch a drama, lecture, video, or live stream in another language and get real-t
 | Live | Overlay | Models |
 | :---: | :---: | :---: |
 | <img src="docs/screenshots/live.jpg" width="250" alt="Live tab"> | <img src="docs/screenshots/overlay.jpg" width="250" alt="Overlay tab"> | <img src="docs/screenshots/models.jpg" width="250" alt="Models tab"> |
-| Start/stop, subtitle preview and a live dashboard (RAM, CPU, latency — 23 ms in this shot). The floating subtitle on top is the overlay doing its job. | Text size, opacity, themes and fonts for the floating subtitles, with a live preview. | System Audio or Mic, Sherpa on-device or Remote — and you only download the language models you actually need. |
+| Start/stop, subtitle preview and a live dashboard (RAM, CPU, latency). The floating subtitle on top is the overlay doing its job. | Text size, opacity, themes and fonts for the floating subtitles, with a live preview. | System Audio or Mic, Sherpa on-device or Remote — and you only download the language models you actually need. |
 
 ---
 
