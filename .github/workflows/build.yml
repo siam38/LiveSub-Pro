@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: 'Publish this build as a GitHub Release'
+        description: 'Publish as a full release (unticked = pre-release test build)'
         type: boolean
         default: false
 
@@ -70,11 +70,6 @@ jobs:
       - name: Fetch gradle wrapper jar from upstream
         run: curl -sL -o gradle/wrapper/gradle-wrapper.jar "https://raw.githubusercontent.com/chartmann1590/LiveTranscribe-Android/main/gradle/wrapper/gradle-wrapper.jar"
 
-      - name: Fetch bundled tutorial video from upstream
-        run: |
-          mkdir -p app/src/main/res/raw
-          curl -fL --retry 3 -o app/src/main/res/raw/tutorial_video.mp4 "https://raw.githubusercontent.com/chartmann1590/LiveTranscribe-Android/main/app/src/main/res/raw/tutorial_video.mp4"
-
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
@@ -105,12 +100,14 @@ jobs:
           path: LiveSub-Pro-v1.0.${{ github.run_number }}.apk
           compression-level: 0
 
-      # Test builds only: a Release is published solely on a manual run
-      # with the "release" input ticked, after the build is tested OK.
+      # Every build publishes as a pre-release for testing. A full release
+      # is published only on a manual run with the "release" input ticked,
+      # after Siam has tested the build and said it is OK. The in-app update
+      # checker only tracks full releases, never pre-releases.
       - name: Publish APK to a GitHub Release
-        if: ${{ inputs.release }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
           name: LiveSub Pro v1.0.${{ github.run_number }}
+          prerelease: ${{ !inputs.release }}
           files: LiveSub-Pro-v1.0.${{ github.run_number }}.apk
