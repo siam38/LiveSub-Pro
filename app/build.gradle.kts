@@ -93,6 +93,14 @@ android {
     }
 
     signingConfigs {
+        // Fixed signing key committed in the repo so every CI build carries
+        // the same cert and updates install without uninstalling first.
+        create("livesub") {
+            storeFile = rootProject.file("keystore/livesub.keystore")
+            storePassword = "livesubpro"
+            keyAlias = "livesub"
+            keyPassword = "livesubpro"
+        }
         if (hasReleaseSigning) {
             create("release") {
                 val storeFileName = keystoreProps.getProperty("storeFile")
@@ -106,6 +114,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("livesub")
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

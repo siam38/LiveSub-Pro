@@ -13,6 +13,8 @@
 *.aab
 *.jks
 *.keystore
+# Fixed app signing key — committed on purpose so CI builds share one cert
+!/keystore/livesub.keystore
 overlay_state.png
 *.png.tmp
 
