@@ -19,6 +19,7 @@ data class CaptionRuntimeState(
     val previewTranslatedText: String = "",
     val transcriptLines: List<CaptionRuntimeLine> = emptyList(),
     val status: RecognitionStatus = RecognitionStatus.IDLE,
+    val lastTranslationMs: Long? = null,
     val running: Boolean = false,
     val paused: Boolean = false,
     val lastError: String? = null

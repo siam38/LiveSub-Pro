@@ -51,7 +51,7 @@ class MainViewModel(
                 val specs = DeviceCompatibilityChecker.inspect(getApplication(), simulatedTier)
                 var shouldShowUnsupported = mutableState.value.showUnsupportedModal
 
-                if (specs.tier == CompatibilityTier.UNSUPPORTED) {
+                if (specs.tier == CompatibilityTier.UNSUPPORTED && !settings.compatibilityOverride) {
                     if (settings.sttBackend == SttBackend.LOCAL_SHERPA || settings.translationBackend == TranslationBackend.ML_KIT) {
                         shouldShowUnsupported = true
                         viewModelScope.launch {
@@ -267,7 +267,7 @@ class MainViewModel(
 
     fun updateSttBackend(backend: SttBackend) {
         val specs = mutableState.value.deviceSpecs
-        if (specs?.tier == CompatibilityTier.UNSUPPORTED && backend == SttBackend.LOCAL_SHERPA) {
+        if (specs?.tier == CompatibilityTier.UNSUPPORTED && !mutableState.value.settings.compatibilityOverride && backend == SttBackend.LOCAL_SHERPA) {
             mutableState.value = mutableState.value.copy(showUnsupportedModal = true)
             return
         }
@@ -276,7 +276,7 @@ class MainViewModel(
 
     fun updateTranslationBackend(backend: TranslationBackend) {
         val specs = mutableState.value.deviceSpecs
-        if (specs?.tier == CompatibilityTier.UNSUPPORTED && backend == TranslationBackend.ML_KIT) {
+        if (specs?.tier == CompatibilityTier.UNSUPPORTED && !mutableState.value.settings.compatibilityOverride && backend == TranslationBackend.ML_KIT) {
             mutableState.value = mutableState.value.copy(showUnsupportedModal = true)
             return
         }
@@ -285,6 +285,18 @@ class MainViewModel(
 
     fun dismissUnsupportedModal() {
         mutableState.value = mutableState.value.copy(showUnsupportedModal = false)
+    }
+
+    fun acknowledgeCompatibility(proceedAnyway: Boolean) {
+        viewModelScope.launch {
+            container.settingsRepository.update {
+                it.copy(
+                    compatibilityGateDone = true,
+                    compatibilityOverride = proceedAnyway &&
+                        mutableState.value.deviceSpecs?.tier != CompatibilityTier.PASSED
+                )
+            }
+        }
     }
 
     fun dismissBorderlineWarning() {

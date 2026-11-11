@@ -361,6 +361,7 @@ class CaptionForegroundService : Service() {
         val isSameLanguage = captionSettings.sourceLanguageCode.trim()
             .equals(captionSettings.targetLanguageCode.trim(), ignoreCase = true)
 
+        val translateStartMs = SystemClock.elapsedRealtime()
         val rawTranslated = if (isSameLanguage) {
             preGlossaryText
         } else {
@@ -372,6 +373,7 @@ class CaptionForegroundService : Service() {
             )
         }
         if (rawTranslated.isBlank()) return
+        val translateMs = SystemClock.elapsedRealtime() - translateStartMs
         val translatedWithGlossary = applyGlossary(rawTranslated, glossaryEntries)
 
         if (captionSessionActive.get()) {
@@ -379,6 +381,7 @@ class CaptionForegroundService : Service() {
                 val current = state.transcriptLines.any { line -> line.id == request.lineId }
                 if (request.isFinal || isSameLanguage) {
                     state.copy(
+                        lastTranslationMs = if (request.isFinal) translateMs else state.lastTranslationMs,
                         translatedText = if (current) translatedWithGlossary else state.translatedText,
                         previewTranslatedText = if (request.isFinal) "" else translatedWithGlossary,
                         transcriptLines = updateTranscriptTranslation(

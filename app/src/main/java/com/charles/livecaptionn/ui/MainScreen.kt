@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.SurroundSound
@@ -104,6 +105,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.delay
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.charles.livecaptionn.BuildConfig
 import com.charles.livecaptionn.compatibility.CompatibilityTier
@@ -187,6 +189,32 @@ fun MainScreen(
     val modelReady = when (ui.settings.sttBackend) {
         SttBackend.LOCAL_SHERPA -> ui.sherpaActiveModel != null
         SttBackend.REMOTE_WHISPER -> true
+    }
+
+    // First-run compatibility gate: shown once, before anything else.
+    val gateSpecs = ui.deviceSpecs
+    if (gateSpecs != null && !ui.settings.compatibilityGateDone) {
+        CompatibilityGateDialog(
+            specs = gateSpecs,
+            onConfirm = { proceedAnyway -> viewModel.acknowledgeCompatibility(proceedAnyway) }
+        )
+    }
+
+    // If a permission that was granted gets removed later, warn with a popup.
+    var prevAllGranted by remember { mutableStateOf<Boolean?>(null) }
+    var showPermissionRevoked by remember { mutableStateOf(false) }
+    LaunchedEffect(ui.micPermissionGranted, ui.overlayPermissionGranted) {
+        val all = ui.micPermissionGranted && ui.overlayPermissionGranted
+        if (prevAllGranted == true && !all) showPermissionRevoked = true
+        prevAllGranted = all
+    }
+    if (showPermissionRevoked) {
+        PermissionRevokedDialog(
+            ui = ui,
+            onRequestAudioPermission = onRequestAudioPermission,
+            onOpenOverlaySettings = onOpenOverlaySettings,
+            onDismiss = { showPermissionRevoked = false }
+        )
     }
 
     Scaffold(
@@ -324,7 +352,7 @@ fun MainScreen(
                         viewModel = viewModel,
                         onManageModels = { showModelSheet = true }
                     )
-                    PermissionsCard(ui, onRequestAudioPermission, onOpenOverlaySettings)
+                    DashboardCard(ui)
                 }
 
                 StudioTab.STYLE -> {
@@ -723,80 +751,229 @@ private fun BlockerRow(text: String, actionLabel: String, onAction: () -> Unit) 
 }
 
 @Composable
-private fun PermissionsCard(
-    ui: MainUiState,
-    onRequestAudioPermission: () -> Unit,
-    onOpenOverlaySettings: () -> Unit
-) {
-    val t = LocalUiStrings.current
-    val allGranted = ui.micPermissionGranted && ui.overlayPermissionGranted
+private fun DashboardCard(ui: MainUiState) {
+    val context = LocalContext.current
+    var appRamMb by remember { mutableStateOf(0L) }
+    var deviceFreeMb by remember { mutableStateOf(0L) }
+    var deviceTotalMb by remember { mutableStateOf(0L) }
+    LaunchedEffect(Unit) {
+        val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+        while (true) {
+            val memInfo = android.os.Debug.MemoryInfo()
+            android.os.Debug.getMemoryInfo(memInfo)
+            appRamMb = memInfo.totalPss / 1024L
+            if (am != null) {
+                val info = android.app.ActivityManager.MemoryInfo()
+                am.getMemoryInfo(info)
+                deviceTotalMb = info.totalMem / (1024 * 1024)
+                deviceFreeMb = info.availMem / (1024 * 1024)
+            }
+            delay(2000)
+        }
+    }
+    val specs = ui.deviceSpecs
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SectionLabel(t["Permissions"])
-            if (allGranted) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Filled.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(20.dp)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Filled.Speed,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                SectionLabel("Dashboard")
+                Spacer(Modifier.weight(1f))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = if (ui.runtime.running) MaterialTheme.colorScheme.tertiary
+                    else MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Text(
+                        text = if (ui.runtime.running) "LIVE" else "IDLE",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (ui.runtime.running) MaterialTheme.colorScheme.onTertiary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    Text(t["All permissions granted"], style = MaterialTheme.typography.bodyMedium)
-                }
-            } else {
-                PermissionRow(t["Microphone"], ui.micPermissionGranted) { onRequestAudioPermission() }
-                PermissionRow(t["Overlay"], ui.overlayPermissionGranted) { onOpenOverlaySettings() }
-                if (!ui.overlayPermissionGranted) {
-                    var showHelp by remember { mutableStateOf(false) }
-                    TextButton(onClick = { showHelp = !showHelp }) {
-                        Text(t["Can't turn on Overlay?"])
-                    }
-                    if (showHelp) {
-                        Text(
-                            text = t["On Android 13 and newer, apps installed outside the Play Store are blocked from this switch at first. Fix: open Settings → Apps → LiveSub Pro, tap the ⋮ menu in the top corner, choose “Allow restricted settings”, then come back and turn on “Display over other apps”."],
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
                 }
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DashboardTile(
+                    label = "App RAM",
+                    value = if (appRamMb > 0) "$appRamMb MB" else "—",
+                    modifier = Modifier.weight(1f)
+                )
+                DashboardTile(
+                    label = "Device RAM free",
+                    value = if (deviceTotalMb > 0) "${formatGb(deviceFreeMb)} / ${formatGb(deviceTotalMb)}" else "—",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                DashboardTile(
+                    label = "Subtitle latency",
+                    value = ui.runtime.lastTranslationMs?.let { "$it ms" } ?: "—",
+                    modifier = Modifier.weight(1f)
+                )
+                DashboardTile(
+                    label = "Device support",
+                    value = specs?.tier?.label ?: "Checking…",
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Text(
+                text = buildString {
+                    append(if (ui.settings.sttBackend == SttBackend.LOCAL_SHERPA) "Sherpa on-device" else "Remote Whisper")
+                    append(" · ")
+                    append(if (ui.settings.audioSource == AudioSource.SYSTEM) "System Audio" else "Microphone")
+                    ui.sherpaActiveModel?.let { append(" · "); append(it.displayName) }
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
 
 @Composable
-private fun PermissionRow(label: String, granted: Boolean, onGrant: () -> Unit) {
-    val t = LocalUiStrings.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+private fun DashboardTile(label: String, value: String, modifier: Modifier = Modifier) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                imageVector = if (granted) Icons.Filled.CheckCircle else Icons.Filled.Error,
-                contentDescription = null,
-                tint = if (granted) MaterialTheme.colorScheme.tertiary
-                else MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(20.dp)
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                softWrap = false
             )
-            Spacer(Modifier.width(8.dp))
-            Text(label, style = MaterialTheme.typography.bodyMedium)
-        }
-        if (!granted) {
-            FilledTonalButton(
-                onClick = onGrant,
-                shape = RoundedCornerShape(8.dp),
-                modifier = Modifier.width(140.dp).height(40.dp)
-            ) { Text(t["Grant"]) }
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
+}
+
+private fun formatGb(mb: Long): String = String.format("%.1f GB", mb / 1024f)
+
+@Composable
+private fun PermissionRevokedDialog(
+    ui: MainUiState,
+    onRequestAudioPermission: () -> Unit,
+    onOpenOverlaySettings: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val missing = buildList {
+        if (!ui.micPermissionGranted) add("Microphone")
+        if (!ui.overlayPermissionGranted) add("Display over other apps (Overlay)")
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(Icons.Filled.Error, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+        },
+        title = { Text("Permission removed") },
+        text = {
+            Text(
+                "A permission LiveSub Pro needs was turned off: ${missing.joinToString(", ")}. " +
+                    "Subtitles will not start until it is granted again."
+            )
+        },
+        confirmButton = {
+            Button(onClick = {
+                onDismiss()
+                if (!ui.overlayPermissionGranted) onOpenOverlaySettings() else onRequestAudioPermission()
+            }) {
+                Text("Grant again")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Later") }
+        }
+    )
+}
+
+@Composable
+private fun CompatibilityGateDialog(
+    specs: DeviceSpecs,
+    onConfirm: (proceedAnyway: Boolean) -> Unit
+) {
+    val supported = specs.tier == CompatibilityTier.PASSED
+    AlertDialog(
+        onDismissRequest = {},
+        icon = {
+            Icon(
+                if (supported) Icons.Filled.CheckCircle else Icons.Filled.Error,
+                contentDescription = null,
+                tint = if (supported) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(32.dp)
+            )
+        },
+        title = {
+            Text(if (supported) "Your device is supported" else "Device compatibility check")
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "${specs.deviceModel} · ${specs.androidVersion}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "RAM: ${formatGb(specs.totalRamMb)} · CPU: ${specs.cpuCores} cores · " +
+                        "${if (specs.is64Bit) "64-bit" else "32-bit"} · Free storage: ${formatGb(specs.freeStorageMb)}",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontFamily = FontFamily.Monospace
+                )
+                Text(
+                    text = "Support level: ${specs.tier.label}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = when (specs.tier) {
+                        CompatibilityTier.PASSED -> MaterialTheme.colorScheme.tertiary
+                        CompatibilityTier.BORDERLINE -> Color(0xFFE65100)
+                        CompatibilityTier.UNSUPPORTED -> MaterialTheme.colorScheme.error
+                    }
+                )
+                specs.reasons.forEach { reason ->
+                    Text(
+                        text = "• $reason",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (!supported) {
+                    Text(
+                        text = "On-device subtitles may be slow or unavailable on this device. You can proceed anyway — remote mode stays available.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(!supported) }) {
+                Text(if (supported) "Start using" else "Proceed anyway")
+            }
+        }
+    )
 }
 
 @Composable
@@ -845,7 +1022,7 @@ private fun AudioSourceCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(t["Transcription engine"], style = MaterialTheme.typography.labelMedium)
-            val isSttUnsupported = ui.deviceSpecs?.tier == CompatibilityTier.UNSUPPORTED
+            val isSttUnsupported = ui.deviceSpecs?.tier == CompatibilityTier.UNSUPPORTED && !ui.settings.compatibilityOverride
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1412,7 +1589,10 @@ private fun SherpaModelRow(
                         Text(
                             text = model.displayName,
                             style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
                         )
                         if (isActive) {
                             Surface(
@@ -1423,6 +1603,8 @@ private fun SherpaModelRow(
                                     text = "ACTIVE",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onPrimary,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                 )
                             }
@@ -1437,7 +1619,9 @@ private fun SherpaModelRow(
                         Text(
                             text = model.description,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -1720,7 +1904,7 @@ private fun ServerCard(
                 SectionLabel(t["Translation engine"])
             }
 
-            val isTranslateUnsupported = ui.deviceSpecs?.tier == CompatibilityTier.UNSUPPORTED
+            val isTranslateUnsupported = ui.deviceSpecs?.tier == CompatibilityTier.UNSUPPORTED && !ui.settings.compatibilityOverride
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)

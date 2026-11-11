@@ -32,6 +32,10 @@ data class CaptionSettings(
 
     val borderlineWarningDismissed: Boolean = false,
 
+    val compatibilityGateDone: Boolean = false,
+
+    val compatibilityOverride: Boolean = false,
+
     val simulatedCompatibilityTier: String? = null
 ) {
     companion object {
