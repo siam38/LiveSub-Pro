@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -290,11 +289,18 @@ fun MainScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
                 .padding(padding)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // Dashboard stays pinned at the top; everything below scrolls.
+            DashboardCard(ui)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
             val updateCtx = LocalContext.current
             ui.availableUpdate?.let { info ->
                 UpdateAvailableBanner(
@@ -352,7 +358,6 @@ fun MainScreen(
                         viewModel = viewModel,
                         onManageModels = { showModelSheet = true }
                     )
-                    DashboardCard(ui)
                 }
 
                 StudioTab.STYLE -> {
@@ -433,6 +438,7 @@ fun MainScreen(
             }
 
             Spacer(Modifier.height(8.dp))
+            }
         }
 
         if (showModelSheet) {
@@ -516,115 +522,194 @@ private fun CaptionControlCard(
     val neededModel = ui.sherpaNeededModel
     val neededState = neededModel?.let { ui.sherpaModels[it.id] }
 
+    val statusText = when {
+        isRunning -> t["Live"] + " · " + t[ui.runtime.status.displayName]
+        ui.runtime.status == RecognitionStatus.ERROR -> t["Couldn't start"]
+        canStart -> t["Ready"]
+        else -> t["Setup needed"]
+    }
+    val statusColor = when {
+        isRunning -> MaterialTheme.colorScheme.tertiary
+        ui.runtime.status == RecognitionStatus.ERROR -> MaterialTheme.colorScheme.error
+        canStart -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.secondary
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isRunning) MaterialTheme.colorScheme.primaryContainer
+            containerColor = if (isRunning) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
             else MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(
             width = if (isRunning) 1.5.dp else 1.dp,
-            color = if (isRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
+            color = if (isRunning) MaterialTheme.colorScheme.primary.copy(alpha = 0.65f)
+            else MaterialTheme.colorScheme.outlineVariant
         )
     ) {
-        Column(Modifier.padding(20.dp)) {
-            val statusColor = when {
-                isRunning -> MaterialTheme.colorScheme.tertiary
-                ui.runtime.status == RecognitionStatus.ERROR -> MaterialTheme.colorScheme.error
-                canStart -> MaterialTheme.colorScheme.tertiary
-                else -> MaterialTheme.colorScheme.secondary
-            }
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Header: status pill (flexible) + audio source chip (never wraps).
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(statusColor)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = when {
-                            isRunning -> t["Live"] + " · " + t[ui.runtime.status.displayName]
-                            ui.runtime.status == RecognitionStatus.ERROR -> t["Couldn't start"]
-                            canStart -> t["Ready"]
-                            else -> t["Setup needed before captioning"]
-                        },
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                    shape = RoundedCornerShape(999.dp),
+                    color = statusColor.copy(alpha = 0.14f),
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(statusColor)
+                        )
+                        Spacer(Modifier.width(7.dp))
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = statusColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Surface(
+                    shape = RoundedCornerShape(999.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            if (ui.settings.audioSource == AudioSource.SYSTEM) Icons.Filled.SurroundSound else Icons.Filled.Mic,
+                            contentDescription = null,
+                            modifier = Modifier.size(14.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(5.dp))
+                        Text(
+                            text = if (ui.settings.audioSource == AudioSource.SYSTEM) t["System Audio"] else t["Microphone"],
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+                }
+            }
+
+            // Subtitle stage: a dark preview panel that always shows, live or idle.
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = Color.Black.copy(alpha = 0.88f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.Subtitles,
+                            contentDescription = null,
+                            tint = Color.White.copy(alpha = 0.55f),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "SUBTITLE PREVIEW",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White.copy(alpha = 0.55f),
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                        if (isRunning) {
+                            Spacer(Modifier.weight(1f))
+                            Box(
+                                Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF4ADE80))
+                            )
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                text = "LIVE",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFF4ADE80),
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                    if (isRunning && ui.runtime.originalText.isNotBlank()) {
+                        Text(
+                            text = ui.runtime.originalText,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontStyle = FontStyle.Italic,
+                            color = Color.White.copy(alpha = 0.7f),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Text(
-                        text = if (ui.settings.audioSource == AudioSource.SYSTEM) t["System Audio"] else t["Microphone"],
-                        style = MaterialTheme.typography.labelSmall,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        text = if (isRunning) {
+                            ui.runtime.translatedText
+                                .ifBlank { ui.runtime.previewTranslatedText }
+                                .ifBlank { ui.runtime.originalText }
+                                .ifBlank { "…" }
+                        } else {
+                            t["Press Start, then play a video — subtitles land here first."]
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
             val err = ui.runtime.lastError?.trim().orEmpty()
             if (err.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.75f)
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f)
                 ) {
-                    Text(
-                        text = err,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                }
-            }
-
-            if (isRunning) {
-                Spacer(Modifier.height(12.dp))
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                ) {
-                    Column(Modifier.padding(14.dp)) {
-                        if (ui.runtime.originalText.isNotBlank()) {
-                            Text(
-                                text = ui.runtime.originalText,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontStyle = FontStyle.Italic,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(4.dp))
-                        }
-                        val liveTranslated = ui.runtime.translatedText
-                            .ifBlank { ui.runtime.previewTranslatedText }
-                            .ifBlank { ui.runtime.originalText }
-                            .ifBlank { "…" }
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            Icons.Filled.Error,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = liveTranslated,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 3,
-                            overflow = TextOverflow.Ellipsis
+                            text = err,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
             }
-
-            Spacer(Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(
@@ -632,19 +717,19 @@ private fun CaptionControlCard(
                     enabled = !isRunning && canStart,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(52.dp),
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(t["Start"], fontWeight = FontWeight.Bold)
+                    Text(t["Start"], fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
                 Button(
                     onClick = onStop,
                     enabled = isRunning,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(52.dp),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
@@ -652,18 +737,17 @@ private fun CaptionControlCard(
                 ) {
                     Icon(Icons.Filled.Stop, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text(t["Stop"], fontWeight = FontWeight.Bold)
+                    Text(t["Stop"], fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                 }
             }
 
             if (!isRunning && !canStart) {
-                Spacer(Modifier.height(14.dp))
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     if (needsOverlay) {
-                        BlockerRow(t["Overlay permission is off"], t["Open settings"], onOpenOverlaySettings)
+                        BlockerCard(t["Overlay permission is off"], t["Open settings"], onOpenOverlaySettings)
                     }
                     if (needsMic) {
-                        BlockerRow(t["Microphone permission is off"], t["Grant"], onRequestAudioPermission)
+                        BlockerCard(t["Microphone permission is off"], t["Grant"], onRequestAudioPermission)
                     }
                     if (needsModel) {
                         when {
@@ -674,7 +758,6 @@ private fun CaptionControlCard(
                                 )
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
@@ -688,7 +771,7 @@ private fun CaptionControlCard(
                                         modifier = Modifier.weight(1f)
                                     )
                                     TextButton(onClick = onCancelDownload) {
-                                        Text(t["Cancel"])
+                                        Text(t["Cancel"], maxLines = 1, softWrap = false)
                                     }
                                 }
                             }
@@ -696,7 +779,7 @@ private fun CaptionControlCard(
                                 val langName = SherpaModelCatalog.LANGUAGES
                                     .firstOrNull { it.first == ui.settings.sourceLanguageCode }?.second
                                     ?: ui.settings.sourceLanguageCode.uppercase()
-                                BlockerRow(
+                                BlockerCard(
                                     t.format("Speech model for %s is not downloaded", langName),
                                     t.format("Download · ~%d MB", neededModel.totalSizeMb),
                                     onDownloadModel
@@ -709,7 +792,7 @@ private fun CaptionControlCard(
                                     )
                                 }
                             }
-                            else -> BlockerRow(
+                            else -> BlockerCard(
                                 t["No on-device model for this language"],
                                 t["All models"],
                                 onManageModels
@@ -723,29 +806,38 @@ private fun CaptionControlCard(
 }
 
 @Composable
-private fun BlockerRow(text: String, actionLabel: String, onAction: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+private fun BlockerCard(text: String, actionLabel: String, onAction: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-            Icon(
-                Icons.Filled.Error,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(text, style = MaterialTheme.typography.bodySmall)
-        }
-        Spacer(Modifier.width(8.dp))
-        FilledTonalButton(
-            onClick = onAction,
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.defaultMinSize(minWidth = 136.dp, minHeight = 38.dp)
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text(actionLabel)
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    Icons.Filled.Error,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            FilledTonalButton(
+                onClick = onAction,
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+            ) {
+                Text(actionLabel, maxLines = 1, softWrap = false)
+            }
         }
     }
 }
@@ -1060,7 +1152,7 @@ private fun AudioSourceCard(
                             modifier = Modifier.weight(1f)
                         )
                         TextButton(onClick = onManageModels) {
-                            Text(t["All speech models"])
+                            Text(t["All speech models"], maxLines = 1, softWrap = false)
                         }
                     }
                     neededState?.downloading == true -> {
@@ -1080,7 +1172,7 @@ private fun AudioSourceCard(
                                 modifier = Modifier.weight(1f)
                             )
                             TextButton(onClick = { needed?.let { viewModel.cancelSherpaModelDownload(it) } }) {
-                                Text(t["Cancel"])
+                                Text(t["Cancel"], maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -1090,21 +1182,20 @@ private fun AudioSourceCard(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        OutlinedButton(
+                            onClick = { viewModel.downloadSherpaModel(needed) },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            OutlinedButton(
-                                onClick = { viewModel.downloadSherpaModel(needed) },
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text(t.format("Download model (~%d MB)", needed.totalSizeMb))
-                            }
-                            TextButton(onClick = onManageModels) {
-                                Text(t["All speech models"])
-                            }
+                            Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(t.format("Download model (~%d MB)", needed.totalSizeMb), maxLines = 1, softWrap = false)
+                        }
+                        TextButton(
+                            onClick = onManageModels,
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
+                            Text(t["All speech models"], maxLines = 1, softWrap = false)
                         }
                         neededState?.error?.let { modelError ->
                             Text(
@@ -1168,7 +1259,8 @@ private fun ChoiceChip(
             text = label,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -1223,21 +1315,19 @@ private fun LanguageCard(
             val usingMlKit = ui.settings.translationBackend == TranslationBackend.ML_KIT
             when {
                 vmStt == SttBackend.LOCAL_SHERPA -> {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         Text(
                             text = t["On-device: the source list only shows languages with a Sherpa speech model."],
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        TextButton(onClick = onManageModels) {
+                        TextButton(
+                            onClick = onManageModels,
+                            modifier = Modifier.align(Alignment.End)
+                        ) {
                             Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text(t["Speech models"])
+                            Text(t["Speech models"], maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -1332,7 +1422,9 @@ private fun LanguagePickerField(
             fontWeight = FontWeight.Medium,
             color = if (options.isEmpty()) MaterialTheme.colorScheme.onSurfaceVariant
             else MaterialTheme.colorScheme.onSurface,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
         )
         Icon(Icons.Filled.ArrowDropDown, contentDescription = null)
     }
@@ -1630,7 +1722,7 @@ private fun SherpaModelRow(
                     state.downloading -> TextButton(onClick = onCancel) {
                         Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(t["Cancel"])
+                        Text(t["Cancel"], maxLines = 1, softWrap = false)
                     }
                     state.installed -> Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
