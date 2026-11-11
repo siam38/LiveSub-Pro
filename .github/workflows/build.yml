@@ -1,8 +1,6 @@
 name: Build LiveSub Pro APK
 
 on:
-  push:
-    branches: [ '**' ]
   workflow_dispatch:
     inputs:
       release:
@@ -100,10 +98,10 @@ jobs:
           path: LiveSub-Pro-v1.0.${{ github.run_number }}.apk
           compression-level: 0
 
-      # Every build publishes as a pre-release for testing. A full release
-      # is published only on a manual run with the "release" input ticked,
-      # after Siam has tested the build and said it is OK. The in-app update
-      # checker only tracks full releases, never pre-releases.
+      # Builds run manually only, never on push. Unticked publishes a
+      # pre-release for testing; ticked publishes a full release, only
+      # after Siam has tested and said OK. The in-app update checker
+      # only tracks full releases, never pre-releases.
       - name: Publish APK to a GitHub Release
         uses: softprops/action-gh-release@v2
         with:
