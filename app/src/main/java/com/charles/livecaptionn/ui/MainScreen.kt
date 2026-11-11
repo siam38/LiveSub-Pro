@@ -105,6 +105,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
+import android.os.SystemClock
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.charles.livecaptionn.BuildConfig
 import com.charles.livecaptionn.compatibility.CompatibilityTier
@@ -289,18 +290,11 @@ fun MainScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(padding)
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // Dashboard stays pinned at the top; everything below scrolls.
-            DashboardCard(ui)
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
             val updateCtx = LocalContext.current
             ui.availableUpdate?.let { info ->
                 UpdateAvailableBanner(
@@ -348,6 +342,7 @@ fun MainScreen(
                         onCancelDownload = { ui.sherpaNeededModel?.let { viewModel.cancelSherpaModelDownload(it) } },
                         onManageModels = { showModelSheet = true }
                     )
+                    DashboardCard(ui)
                     LanguageCard(
                         ui = ui,
                         viewModel = viewModel,
@@ -438,7 +433,6 @@ fun MainScreen(
             }
 
             Spacer(Modifier.height(8.dp))
-            }
         }
 
         if (showModelSheet) {
@@ -582,6 +576,43 @@ private fun CaptionControlCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                    }
+                }
+                ui.deviceSpecs?.let { specs ->
+                    val supportLabel = when (specs.tier) {
+                        CompatibilityTier.PASSED -> "Supported"
+                        CompatibilityTier.BORDERLINE -> "Limited"
+                        CompatibilityTier.UNSUPPORTED -> "Unsupported"
+                    }
+                    val supportColor = when (specs.tier) {
+                        CompatibilityTier.PASSED -> MaterialTheme.colorScheme.tertiary
+                        CompatibilityTier.BORDERLINE -> Color(0xFFE65100)
+                        CompatibilityTier.UNSUPPORTED -> MaterialTheme.colorScheme.error
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(999.dp),
+                        color = supportColor.copy(alpha = 0.14f)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                if (specs.tier == CompatibilityTier.PASSED) Icons.Filled.CheckCircle else Icons.Filled.Error,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = supportColor
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Text(
+                                text = supportLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = supportColor,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
                 Surface(
@@ -848,8 +879,12 @@ private fun DashboardCard(ui: MainUiState) {
     var appRamMb by remember { mutableStateOf(0L) }
     var deviceFreeMb by remember { mutableStateOf(0L) }
     var deviceTotalMb by remember { mutableStateOf(0L) }
+    var appCpuPct by remember { mutableStateOf(-1) }
     LaunchedEffect(Unit) {
         val am = context.getSystemService(android.content.Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
+        val cores = Runtime.getRuntime().availableProcessors().coerceAtLeast(1)
+        var prevTicks = readAppCpuTicks()
+        var prevTimeMs = SystemClock.elapsedRealtime()
         while (true) {
             val memInfo = android.os.Debug.MemoryInfo()
             android.os.Debug.getMemoryInfo(memInfo)
@@ -861,9 +896,18 @@ private fun DashboardCard(ui: MainUiState) {
                 deviceFreeMb = info.availMem / (1024 * 1024)
             }
             delay(2000)
+            val nowTicks = readAppCpuTicks()
+            val nowTimeMs = SystemClock.elapsedRealtime()
+            if (prevTicks >= 0 && nowTicks >= prevTicks && nowTimeMs > prevTimeMs) {
+                // /proc ticks are 100 per second; normalize across all cores.
+                val usedSeconds = (nowTicks - prevTicks) / 100.0
+                val wallSeconds = (nowTimeMs - prevTimeMs) / 1000.0
+                appCpuPct = (usedSeconds / (wallSeconds * cores) * 100).toInt().coerceIn(0, 100)
+            }
+            prevTicks = nowTicks
+            prevTimeMs = nowTimeMs
         }
     }
-    val specs = ui.deviceSpecs
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
@@ -912,13 +956,13 @@ private fun DashboardCard(ui: MainUiState) {
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 DashboardTile(
-                    label = "Subtitle latency",
-                    value = ui.runtime.lastTranslationMs?.let { "$it ms" } ?: "—",
+                    label = "App CPU",
+                    value = if (appCpuPct >= 0) "$appCpuPct%" else "—",
                     modifier = Modifier.weight(1f)
                 )
                 DashboardTile(
-                    label = "Device support",
-                    value = specs?.tier?.label ?: "Checking…",
+                    label = "Subtitle latency",
+                    value = ui.runtime.lastTranslationMs?.let { "$it ms" } ?: "—",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -965,6 +1009,18 @@ private fun DashboardTile(label: String, value: String, modifier: Modifier = Mod
 }
 
 private fun formatGb(mb: Long): String = String.format("%.1f GB", mb / 1024f)
+
+// Total CPU ticks (user + system) used by this process, from /proc/self/stat.
+private fun readAppCpuTicks(): Long {
+    return try {
+        val stat = java.io.File("/proc/self/stat").readText()
+        val afterComm = stat.substring(stat.lastIndexOf(')') + 2).split(' ')
+        // afterComm[0] is field 3 (state); utime is field 14, stime is field 15.
+        (afterComm[11].toLongOrNull() ?: 0L) + (afterComm[12].toLongOrNull() ?: 0L)
+    } catch (_: Throwable) {
+        -1L
+    }
+}
 
 @Composable
 private fun PermissionRevokedDialog(
