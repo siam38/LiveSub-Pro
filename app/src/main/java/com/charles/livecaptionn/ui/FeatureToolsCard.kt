@@ -397,6 +397,6 @@ fun FeatureToolsCard(
             dismissButton = {
                 TextButton(onClick = { showGlossaryDialog = false }) { Text(t["Cancel"]) }
             }
-        }
+        )
     }
 }

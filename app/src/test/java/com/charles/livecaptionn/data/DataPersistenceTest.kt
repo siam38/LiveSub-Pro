@@ -25,8 +25,11 @@ class DataPersistenceTest {
     }
 
     @Test fun export_containsStableIdentityAndText() {
-        val entry = TranscriptEntry(id = "entry-1", originalText = "Hello", translatedText = "Xin chao", sourceLanguage = "en", targetLanguage = "vi")
+        val entry = TranscriptEntry(id = "entry-1", timestamp = 1_000L, originalText = "Hello", translatedText = "Xin chao", sourceLanguage = "en", targetLanguage = "vi")
         val export = TranscriptExport(listOf(entry))
         assertTrue(export.asText().contains("Hello"))
+        val srt = export.asSrt()
+        assertTrue(srt.contains("00:00:00,000 --> 00:00:03,000"))
+        assertTrue(srt.contains("Xin chao"))
     }
 }
