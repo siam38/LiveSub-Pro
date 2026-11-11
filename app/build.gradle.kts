@@ -100,6 +100,9 @@ android {
             storePassword = "livesubpro"
             keyAlias = "livesub"
             keyPassword = "livesubpro"
+            // v1+v2 on: some phone installers reject v2-only APKs.
+            v1SigningEnabled = true
+            v2SigningEnabled = true
         }
         if (hasReleaseSigning) {
             create("release") {
@@ -123,8 +126,11 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (hasReleaseSigning) {
-                signingConfig = signingConfigs.getByName("release")
+            // Never ship an unsigned release: fall back to the fixed key.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("livesub")
             }
         }
     }
