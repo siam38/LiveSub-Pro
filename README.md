@@ -16,6 +16,38 @@ Speech is conditioned and recognized **on your device** with [Sherpa-ONNX](https
 
 ---
 
+## Screenshots
+
+### Live
+
+<img src="docs/screenshots/live.jpg" width="300" alt="Live tab">
+
+Start/stop, subtitle preview and a live dashboard: app RAM, device RAM free, CPU and subtitle latency, 112 ms in this shot. That latency is the overall one, from the end of the spoken line to the translated subtitle on screen.
+
+### Overlay
+
+<img src="docs/screenshots/overlay.jpg" width="300" alt="Overlay tab">
+
+Text size, opacity, themes and fonts for the floating subtitles, with a live preview.
+
+### Models
+
+<img src="docs/screenshots/models.jpg" width="300" alt="Models tab">
+
+System Audio or Mic, Sherpa on-device or Remote, and you only download the language models you need.
+
+### Over a video
+
+<img src="docs/screenshots/video-subtitles.jpg" width="100%" alt="Floating subtitle over a video">
+
+Left alone, the floating box is just the translated line over your video. Nothing else on screen.
+
+<img src="docs/screenshots/video-controls.jpg" width="100%" alt="Floating box controls and stats">
+
+Tap the box and the controls appear: language pair, pause, minimise, close. Under them, a small live stats line: latency (77 ms in this shot), CPU, app RAM and free device memory.
+
+---
+
 ## Key Highlights
 
 - **Zero-Blackout Cinema Subtitles** — Displays stabilized cues in a bottom dock with optional bilingual original lines, progressive clause-boundary preview translation for long utterances, and instant pass-through for same-language live captioning.
@@ -26,20 +58,6 @@ Speech is conditioned and recognized **on your device** with [Sherpa-ONNX](https
 - **Studio Workspace UI** — Organized into 4 focused tabs (**Live**, **Overlay**, **Models**, **Tools**) with an interactive live overlay style preview, named presets, pre/post translation glossary with case-sensitivity, and searchable history with `.txt`, `.srt`, and `.json` export.
 - **Live Dashboard & In-Box Stats** — A dashboard on the Live tab shows App RAM, free device RAM, App CPU and overall subtitle latency live, next to a Supported / Limited / Unsupported device mark. Tap the floating box while you watch and the same stats run in a small line under its controls: latency, CPU, RAM and free memory, fitted inside the box.
 - **Properly Fast** — Transcription and translation run fully on-device, so a finished line is translated and on screen in well under a second. The latency number in the dashboard (and in the floating box when you tap it) is the honest end-to-end one: from the end of the spoken line to the translated subtitle showing.
-
----
-
-## Screenshots
-
-| Live | Overlay | Models |
-| :---: | :---: | :---: |
-| <img src="docs/screenshots/live.jpg" width="250" alt="Live tab"> | <img src="docs/screenshots/overlay.jpg" width="170" alt="Overlay tab"> | <img src="docs/screenshots/models.jpg" width="250" alt="Models tab"> |
-| Start/stop, subtitle preview and a live dashboard (RAM, CPU, latency). The latency in this shot is 112 ms, the overall time from the end of the spoken line to the translated subtitle on screen. The floating subtitle on top is the overlay doing its job. | Text size, opacity, themes and fonts for the floating subtitles, with a live preview. | System Audio or Mic, Sherpa on-device or Remote — and you only download the language models you actually need. |
-
-| Subtitles only | Tap for controls and stats |
-| :---: | :---: |
-| <img src="docs/screenshots/video-subtitles.jpg" width="100%" alt="Floating subtitle over a video"> | <img src="docs/screenshots/video-controls.jpg" width="100%" alt="Floating box controls and stats"> |
-| Left alone, the box is just the translated line over your video. Nothing else on screen. | Tap the box and the controls appear: language pair, pause, minimise and close. Under them runs a small live stats line with latency (77 ms in this shot), CPU, app RAM and free device memory. |
 
 ---
 
