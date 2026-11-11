@@ -101,8 +101,8 @@ android {
             keyAlias = "livesub"
             keyPassword = "livesubpro"
             // v1+v2 on: some phone installers reject v2-only APKs.
-            v1SigningEnabled = true
-            v2SigningEnabled = true
+            isV1SigningEnabled = true
+            isV2SigningEnabled = true
         }
         if (hasReleaseSigning) {
             create("release") {
