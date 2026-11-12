@@ -116,7 +116,7 @@ class EngineHealth {
 }
 
 suspend fun Call.awaitResponse(): Response = suspendCancellableCoroutine { cont ->
-    invokeOnCancellation { try { cancel() } catch (_: Throwable) {} }
+    cont.invokeOnCancellation { try { cancel() } catch (_: Throwable) {} }
     enqueue(object : Callback {
         override fun onFailure(call: Call, e: IOException) {
             if (cont.isActive) cont.resumeWithException(e)
