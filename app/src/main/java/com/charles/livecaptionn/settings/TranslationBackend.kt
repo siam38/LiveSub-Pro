@@ -2,6 +2,7 @@ package com.charles.livecaptionn.settings
 
 enum class TranslationBackend {
     ML_KIT,
+    FAST_WEB,
     LIBRE_TRANSLATE;
 
     companion object {

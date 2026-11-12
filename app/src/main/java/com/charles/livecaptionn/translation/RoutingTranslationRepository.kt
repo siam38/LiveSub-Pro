@@ -7,7 +7,8 @@ import kotlinx.coroutines.flow.first
 class RoutingTranslationRepository(
     private val settingsRepository: SettingsRepository,
     private val mlKit: TranslationRepository,
-    private val libre: TranslationRepository
+    private val libre: TranslationRepository,
+    private val fastWeb: TranslationRepository? = null
 ) : TranslationRepository {
 
     private var cachedBackend: TranslationBackend? = null
@@ -20,6 +21,13 @@ class RoutingTranslationRepository(
         autoDetect: Boolean
     ): String = activeDelegate().translate(text, sourceCode, targetCode, autoDetect)
 
+    override suspend fun translateUrgent(
+        text: String,
+        sourceCode: String,
+        targetCode: String,
+        autoDetect: Boolean
+    ): String = activeDelegate().translateUrgent(text, sourceCode, targetCode, autoDetect)
+
     override suspend fun prewarm(sourceCode: String, targetCode: String) {
         activeDelegate().prewarm(sourceCode, targetCode)
     }
@@ -31,6 +39,7 @@ class RoutingTranslationRepository(
         }
         val delegate = when (backend) {
             TranslationBackend.ML_KIT -> mlKit
+            TranslationBackend.FAST_WEB -> fastWeb ?: mlKit
             TranslationBackend.LIBRE_TRANSLATE -> libre
         }
         cachedBackend = backend
@@ -41,5 +50,6 @@ class RoutingTranslationRepository(
     override fun close() {
         mlKit.close()
         libre.close()
+        fastWeb?.close()
     }
 }

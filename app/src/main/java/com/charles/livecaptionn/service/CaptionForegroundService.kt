@@ -413,14 +413,23 @@ class CaptionForegroundService : Service() {
             .equals(captionSettings.targetLanguageCode.trim(), ignoreCase = true)
 
         val translateStartMs = SystemClock.elapsedRealtime()
+        val autoDetect = captionSettings.autoDetectSource && captionSettings.sttBackend != SttBackend.LOCAL_SHERPA
         val rawTranslated = if (isSameLanguage) {
             preGlossaryText
+        } else if (request.isFinal) {
+            // Finals take the urgent path: fast-web backends race engines for them.
+            app.container.translationRepository.translateUrgent(
+                text = preGlossaryText,
+                sourceCode = captionSettings.sourceLanguageCode,
+                targetCode = captionSettings.targetLanguageCode,
+                autoDetect = autoDetect
+            )
         } else {
             app.container.translationRepository.translate(
                 text = preGlossaryText,
                 sourceCode = captionSettings.sourceLanguageCode,
                 targetCode = captionSettings.targetLanguageCode,
-                autoDetect = captionSettings.autoDetectSource && captionSettings.sttBackend != SttBackend.LOCAL_SHERPA
+                autoDetect = autoDetect
             )
         }
         if (rawTranslated.isBlank()) return

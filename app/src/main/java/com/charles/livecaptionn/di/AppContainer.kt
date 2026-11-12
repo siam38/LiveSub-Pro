@@ -33,10 +33,13 @@ class AppContainer(context: Context) {
     val runtimeStore: CaptionRuntimeStore = CaptionRuntimeStore()
     private val libreTranslationRepository: TranslationRepository = LibreTranslateRepository(settingsRepository)
     private val mlKitTranslationRepository: TranslationRepository = MlKitTranslationRepository()
+    private val fastTranslationRepository: TranslationRepository =
+        com.charles.livecaptionn.translation.fast.FastTranslationRepository()
     val translationRepository: TranslationRepository = RoutingTranslationRepository(
         settingsRepository = settingsRepository,
         mlKit = mlKitTranslationRepository,
-        libre = libreTranslationRepository
+        libre = libreTranslationRepository,
+        fastWeb = fastTranslationRepository
     )
     val mockTranslationRepository: TranslationRepository = MockTranslationRepository()
     val transcriptHistory: TranscriptHistoryStore = TranscriptHistoryStore(context.applicationContext)

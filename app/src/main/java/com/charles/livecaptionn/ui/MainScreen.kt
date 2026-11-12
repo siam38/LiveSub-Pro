@@ -2074,10 +2074,23 @@ private fun ServerCard(
                     modifier = Modifier.weight(1f)
                 )
             }
+            ChoiceChip(
+                label = t["Fast web (experiment)"],
+                icon = Icons.Filled.Bolt,
+                selected = ui.settings.translationBackend == TranslationBackend.FAST_WEB,
+                onClick = { onSelectTranslationBackend(TranslationBackend.FAST_WEB) },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             if (ui.settings.translationBackend == TranslationBackend.ML_KIT) {
                 Text(
                     text = t["Google ML Kit translates fully on this device — no server required. The first time you use a language pair, a ~30 MB model downloads and is then cached offline forever."],
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else if (ui.settings.translationBackend == TranslationBackend.FAST_WEB) {
+                Text(
+                    text = t["Experimental: free Google / Microsoft / Yandex web translation with batching, caching and engine racing — built for the lowest caption latency. Needs internet; if one engine stalls or rate-limits, the next takes over."],
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
